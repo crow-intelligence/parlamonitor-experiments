@@ -54,6 +54,49 @@ The loaders deliberately do **not** filter. Anything that changes the numbers �
 a minimum word count for length-sensitive lexical diversity, dropping the
 incomplete Q&A pairs — is decided at the call site, where it is visible.
 
+## Task 1 — supervised CAP classification
+
+```bash
+uv sync --extra topics
+uv run python scripts/task1_classifier.py --limit 24   # smoke run first
+uv run python scripts/task1_classifier.py              # ~2 h on CPU
+uv run python scripts/task1_crosstab.py                # needs Task 2 too
+```
+
+`classla/ParlaCAP-Topic-Classifier` — XLM-RoBERTa-large, pre-trained on
+parliamentary proceedings and fine-tuned on 29 ParlaMint 4.1 datasets — assigns
+each speech one of the 21 CAP major topics or `Other`. Predictions below 0.60
+confidence become `Mix`, which is the model authors' own rule, not a tuned one.
+
+No emtsv and no GPU. Raw per-window scores cache to `cap_scores.jsonl`, so a
+re-run or an interrupted run costs nothing already paid for.
+
+### The truncation problem, and what is done about it
+
+Hungarian costs a median **1.82 subword tokens per word**, so the model's 512
+tokens are worth only about **279 words** against a 307-word median speech.
+Two passes are run and both are written:
+
+| column | what it saw |
+| --- | --- |
+| `Predicted_CAP_Topic` | the specification's single pass — the opening ~279 words |
+| `chunked_CAP_Topic` | every 250-word window, distributions averaged by window length |
+
+The truncated pass is kept as primary deliberately: it is what the model
+authors did, so its `Mix` rate is comparable to their published 8.9–11.4%.
+`passes_agree` records where the two differ, which is the measurement of what
+truncation costs. Speeches fitting in one window agree by construction — a
+useful correctness check.
+
+**No accuracy figure can be quoted for Hungarian.** The card reports F1 for
+English, Croatian, Serbian and Bosnian only. Hungarian is among the model's
+languages and ParlaMint-HU among the training sets, but there is no published
+Hungarian evaluation.
+
+`Mix` is not `Other`. `Other` is the model confidently saying a speech fits no
+CAP topic; `Mix` is our override when it was unsure. `raw_label` keeps the
+pre-override prediction so the two stay separable.
+
 ## Task 2 — unsupervised topic modeling
 
 ```bash

@@ -1,8 +1,53 @@
-# Changes summary — Task 2
+# Changes summary — Tasks 1 and 2
 
-Two rounds of unsupervised topic modeling over the 1,693 cycle-43 speeches,
-plus a question-time-versus-debate comparison. Everything below is on
-`setup/dev-environment`; nothing is merged and `main` has no commits.
+Supervised CAP classification (Task 1), two rounds of unsupervised topic
+modeling (Task 2), and a question-time-versus-debate comparison across both.
+Everything is on `setup/dev-environment`; nothing is merged and `main` has no
+commits.
+
+---
+
+# Task 1 — supervised CAP classification
+
+Unlike Task 2, **this specification held up**. The model exists, the 0.60 →
+`Mix` rule is verbatim the authors' recommendation from the model card, and
+`max_length=512, truncation=True` matches their own usage example. Two things
+were measured rather than assumed:
+
+- **The 400-word pre-truncation changes no prediction.** 400 Hungarian words is
+  ~728 tokens, so the tokenizer's 512-token limit binds first either way.
+  Verified: 61 of 120 sample speeches fit in 512 tokens, with and without it.
+  It is kept — it does what it claims (keeps long strings out of the tokenizer)
+  and costs nothing.
+- **512 tokens is ~279 Hungarian words**, at a measured median of 1.82 subword
+  tokens per word. 56% of speeches exceed it.
+
+## What needs a human call (Task 1)
+
+1. **No accuracy figure exists for Hungarian.** The card reports F1 for
+   English (0.723), Croatian (0.686), Serbian (0.710) and Bosnian (0.646)
+   only. Hungarian is among the model's languages and ParlaMint-HU among the
+   29 training datasets, but nothing has been published for it. The `Mix` rate
+   is the only available sanity check against the authors' 8.9–11.4%.
+
+2. **Which pass to report.** `Predicted_CAP_Topic` (truncated, spec-compliant,
+   comparable to the authors' figures) or `chunked_CAP_Topic` (whole speech,
+   not comparable). Both are in the CSV with `passes_agree`.
+
+3. **The 0.60 threshold is calibrated for single-pass scores.** Averaged
+   window distributions are flatter, so the same threshold sends far more of
+   the chunked pass to `Mix`. `chunked_raw_label` keeps the pre-override
+   prediction; re-thresholding the chunked pass is a separate decision.
+
+4. **Extra columns were added.** The spec asks for three (`Original_Text`,
+   `Predicted_CAP_Topic`, `Confidence_Score`); those are present and first.
+   `uid`, `faction`, `discourse_role`, `raw_label`, `n_tokens` and the chunked
+   columns are additions — three anonymous columns cannot be joined to the
+   corpus or to Task 2.
+
+---
+
+# Task 2 — unsupervised topic modeling
 
 ## What needs a human call
 
