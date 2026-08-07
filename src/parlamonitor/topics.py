@@ -15,7 +15,9 @@ into windows, encodes every window, and mean-pools them into one vector.
 
 from __future__ import annotations
 
-from collections.abc import Iterable, Sequence
+import hashlib
+import json
+from collections.abc import Container, Iterable, Sequence
 from dataclasses import dataclass
 from typing import Protocol
 
@@ -73,6 +75,64 @@ class StopwordResult:
     vocabulary_size: int
     max_df: float
     min_df: float
+
+
+def drop_stopwords(
+    tokenized_corpus: Iterable[Sequence[str]], stopwords: Container[str]
+) -> list[list[str]]:
+    """Remove stopword lemmas from every document.
+
+    Applied **before** bigram detection, not after. Gensim scores adjacent
+    pairs, so leaving ``tisztelt`` in the stream lets it fuse into
+    ``tisztelt_elnök`` and consume a bigram slot that a real collocation could
+    have used. Filtering first means only content words can pair up.
+
+    Args:
+        tokenized_corpus: One lemma list per document.
+        stopwords: Anything supporting ``in`` -- normally the frozenset from
+            :func:`parlamonitor.stopwords.hungarian_stopwords`.
+
+    Returns:
+        The filtered documents, in order. Documents can come back empty; the
+        caller decides whether an empty document is droppable.
+
+    Example:
+        >>> drop_stopwords([["tisztelt", "költségvetés", "van"]], {"tisztelt", "van"})
+        [['költségvetés']]
+    """
+    return [
+        [token for token in document if token not in stopwords]
+        for document in tokenized_corpus
+    ]
+
+
+def embedding_cache_key(**config: object) -> str:
+    """Hash an embedding configuration into a short, stable cache key.
+
+    Any input that would change the resulting vectors -- model, chunk size,
+    text normalisation, the set of documents -- belongs in ``config``. Two runs
+    that agree on all of it can reuse the same ``.npy``; two that differ get
+    different keys and recompute, rather than silently reusing vectors built
+    from other text.
+
+    Args:
+        **config: JSON-serialisable values identifying the configuration.
+
+    Returns:
+        The first 16 hex characters of the SHA-256 of the sorted JSON.
+
+    Example:
+        >>> a = embedding_cache_key(model="hubert", chunk_size=80, n_docs=1693)
+        >>> b = embedding_cache_key(chunk_size=80, model="hubert", n_docs=1693)
+        >>> a == b  # key order does not matter
+        True
+        >>> a == embedding_cache_key(model="hubert", chunk_size=64, n_docs=1693)
+        False
+        >>> len(a)
+        16
+    """
+    payload = json.dumps(config, sort_keys=True, ensure_ascii=False, default=str)
+    return hashlib.sha256(payload.encode("utf-8")).hexdigest()[:16]
 
 
 def chunk_tokens(tokens: Sequence[str], size: int = 80) -> list[list[str]]:
