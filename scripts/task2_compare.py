@@ -23,6 +23,7 @@ Usage::
 from __future__ import annotations
 
 import argparse
+import dataclasses
 import json
 import sys
 from collections import Counter
@@ -33,6 +34,7 @@ from keyflux import Keyness, RankedList, allotaxonograph, rtd
 
 from parlamonitor.loading import load_speeches
 from parlamonitor.roles import QA_ROLES, discourse_role
+from parlamonitor.stopwords import hungarian_stopwords
 
 DEFAULT_DIR = Path(__file__).resolve().parents[1] / "data" / "derived" / "task2"
 
@@ -48,6 +50,19 @@ def parse_args(argv=None):
         help="minimum count in each corpus for a type to be scored",
     )
     parser.add_argument("--alpha", type=float, default=1 / 3, help="RTD alpha")
+    parser.add_argument(
+        "--no-stoplist",
+        action="store_true",
+        help=(
+            "keep stopwords. Without this the same stoplist as the topic model "
+            "is applied, so the two halves of the comparison see the same "
+            "corpus. Keeping them is worth one look: the unfiltered "
+            "contributors are dominated by address terms (miniszter, úr, "
+            "tisztelt on the question side, fog on the answer side), which is "
+            "a real difference in how the two sides speak rather than in what "
+            "they speak about"
+        ),
+    )
     return parser.parse_args(argv)
 
 
@@ -79,16 +94,16 @@ def write_keyness(focus, reference, *, labels, path, top, min_freq):
         reference_id=labels[1],
     )
     table = analysis.keywords(top=top)
-    frame = pd.DataFrame([row.__dict__ for row in table.rows])
+    frame = pd.DataFrame([dataclasses.asdict(row) for row in table.rows])
     if not frame.empty:
         frame.insert(0, "focus", labels[0])
         frame.insert(1, "reference", labels[1])
     frame.to_csv(path, index=False, encoding="utf-8")
 
-    repro = table.repro.__dict__
+    repro = dataclasses.asdict(table.repro)
     log(
-        f"{labels[0]} vs {labels[1]}: {len(table.positive)} keywords for "
-        f"{labels[0]}, {len(table.negative)} for {labels[1]} "
+        f"{labels[0]} vs {labels[1]}: {len(table.positive())} keywords for "
+        f"{labels[0]}, {len(table.negative())} for {labels[1]} "
         f"({repro['focus_total']:,} vs {repro['reference_total']:,} tokens)"
     )
     return {"labels": list(labels), "repro": repro, "n_rows": len(frame)}
@@ -105,6 +120,14 @@ def main(argv=None):
     speeches = load_speeches()
     log(f"{len(lemmas)} analysed speeches in the cache")
 
+    stoplist = frozenset() if args.no_stoplist else hungarian_stopwords()
+    if stoplist:
+        lemmas = {
+            uid: [token for token in tokens if token not in stoplist]
+            for uid, tokens in lemmas.items()
+        }
+        log(f"applied {len(stoplist)} stopwords, matching the topic model")
+
     counts: dict[str, Counter[str]] = {}
     speeches_per_group: Counter[str] = Counter()
     for speech in speeches:
@@ -112,7 +135,10 @@ def main(argv=None):
         if not tokens:
             continue
         role = discourse_role(speech)
-        groups = [role, "qa" if role in QA_ROLES else "debate"]
+        # A set, not a list: for a debate speech the fine-grained role and the
+        # coarse group are both "debate", and counting it twice would double
+        # the reference corpus.
+        groups = {role, "qa" if role in QA_ROLES else "debate"}
         for group in groups:
             counts.setdefault(group, Counter()).update(tokens)
             speeches_per_group[group] += 1

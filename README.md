@@ -59,8 +59,10 @@ incomplete Q&A pairs — is decided at the call site, where it is visible.
 ```bash
 uv sync --extra topics
 docker run --rm -d --name emtsv -p 5000:5000 mtaril/emtsv
-uv run python scripts/task2_bertopic.py --limit 40   # smoke run first
-uv run python scripts/task2_bertopic.py              # ~45 min
+uv run python scripts/task2_bertopic.py --limit 60   # smoke run first
+uv run python scripts/task2_bertopic.py              # ~40 min
+uv run python scripts/task2_compare.py               # question time vs debate
+uv run python scripts/task2_label_topics.py          # attach names + evidence
 ```
 
 emtsv lemmatisation with a part-of-speech filter → Gensim bigram fusion →
@@ -69,8 +71,38 @@ embeddings. Outputs land in `data/derived/task2/`, next to a
 `run_manifest.json` recording every parameter, the model revision, the emtsv
 image digest, and the counts behind each stage.
 
-The lemmatisation pass is cached to `lemmatized.jsonl` keyed by speech uid, so
-a re-run only does what is missing and an interrupted run resumes.
+The lemmatisation pass is cached to `lemmatized.jsonl` keyed by
+`(uid, normalisation)` and embeddings to `embeddings-<hash>.npy`, so a re-run
+only does what is missing, an interrupted run resumes, and a change of rule
+invalidates rather than silently reuses.
+
+### Question time versus debate
+
+The Q&A export is **not** a separate corpus — 622 of its 659 turns are speeches
+that `cycle43-speeches.jsonl` already contains. So the comparison is a
+partition of one corpus by `discourse_role`, derived from `speech_type` and
+cross-checked against the Q&A file's turn list (`src/parlamonitor/roles.py`):
+
+| role | n |
+| --- | --- |
+| `debate` | 1,073 |
+| `question` | 203 |
+| `answer` | 202 |
+| `mp_rejoinder` | 76 |
+| `minister_rejoinder` | 75 |
+| `reaction` | 64 |
+
+`task2_compare.py` adds the lexical half with keyflux: log-likelihood keyness,
+log ratio for effect size, rank-turbulence divergence and an allotaxonograph.
+
+### Topic names
+
+`data/labels/task2_topic_names.json` holds hand-authored Hungarian and English
+names for every topic; it is committed because hand-verified work is not
+rebuildable. `task2_label_topics.py` joins it to the model output and attaches
+a **verbatim quote** containing the topic's own top terms, so checking a name
+is a string match rather than a reread. Every row carries
+`checked_by_human=false` until someone says otherwise.
 
 ### Working with emtsv
 

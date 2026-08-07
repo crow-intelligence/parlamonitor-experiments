@@ -1,0 +1,129 @@
+{
+  "_about": {
+    "what": "Hand-authored names for the BERTopic topics of cycle 43.",
+    "derived_from": "data/derived/task2/bertopic_topics.csv, seed 42, min_cluster_size 10, strip-salutation-1",
+    "status": "DRAFT. Written by reading each topic's c-TF-IDF terms and its highest-probability documents. Not yet checked by a human; scripts/task2_label_topics.py attaches a verbatim quote to each so verification is a string match rather than a reread.",
+    "note": "Keyed by topic id. Re-running the model with different parameters renumbers the topics, so check the run manifest before trusting these."
+  },
+  "-1": {
+    "hu": "Nem besorolt maradék",
+    "en": "Unclustered residue",
+    "comment": "Not a topic. The 31% of speeches HDBSCAN left as outliers; its terms are the corpus-wide vocabulary."
+  },
+  "0": {
+    "hu": "Oktatás, gyermekvédelem és családtámogatás",
+    "en": "Education, child protection and family support",
+    "comment": "Spans school policy, teacher pay, adoption and child welfare; the abortion debate sits at its edge."
+  },
+  "1": {
+    "hu": "Miniszterelnök, köztársasági elnök és pártpolitikai konfliktus",
+    "en": "Premiership, head of state and party-political conflict"
+  },
+  "2": {
+    "hu": "Törvényalkotási eljárás és bizottsági szakasz",
+    "en": "Legislative procedure and the committee stage"
+  },
+  "3": {
+    "hu": "Egészségügyi és gyógyszerellátás",
+    "en": "Healthcare and pharmaceutical provision"
+  },
+  "4": {
+    "hu": "Mentelmi ügyek, vizsgálóbizottságok és levéltári kutathatóság",
+    "en": "Immunity cases, committees of inquiry and archival access"
+  },
+  "5": {
+    "hu": "Nemzeti emlékezet, évfordulók és ünnepi beszédek",
+    "en": "National remembrance, anniversaries and ceremonial speeches"
+  },
+  "6": {
+    "hu": "Vasút és közösségi közlekedés",
+    "en": "Rail and public transport"
+  },
+  "7": {
+    "hu": "Migrációs paktum és az Európai Unióhoz fűződő viszony",
+    "en": "The migration pact and relations with the European Union"
+  },
+  "8": {
+    "hu": "Napirend előtti pártpolitikai összecsapások",
+    "en": "Pre-agenda party-political clashes",
+    "comment": "Named for the exchange format rather than a subject: personal names dominate the terms."
+  },
+  "9": {
+    "hu": "Mezőgazdaság, agrárkamara és aszály",
+    "en": "Agriculture, the chamber of agriculture and drought"
+  },
+  "10": {
+    "hu": "Önkormányzatok és kistelepülések",
+    "en": "Local government and small municipalities"
+  },
+  "11": {
+    "hu": "Közmédia és médiatörvény",
+    "en": "Public service media and media law"
+  },
+  "12": {
+    "hu": "Rövid ülésvezetési és technikai megjegyzések",
+    "en": "Short procedural and technical remarks",
+    "comment": "Residual boilerplate: very short turns about microphones, timing and the chair. The round-1 equivalent held 66 speeches; salutation stripping cut it to 37 but did not remove it."
+  },
+  "13": {
+    "hu": "Alaptörvény, alkotmányos garanciák és nemzeti vagyon",
+    "en": "Fundamental Law, constitutional guarantees and national assets"
+  },
+  "14": {
+    "hu": "Vízgazdálkodás, ivóvíz és aszály",
+    "en": "Water management, drinking water and drought"
+  },
+  "15": {
+    "hu": "Szegénység, jövedelmek és államadósság",
+    "en": "Poverty, incomes and public debt"
+  },
+  "16": {
+    "hu": "Energiaellátás és megújuló energia",
+    "en": "Energy supply and renewable energy"
+  },
+  "17": {
+    "hu": "Kárpátaljai magyarok és Ukrajna",
+    "en": "Transcarpathian Hungarians and Ukraine"
+  },
+  "18": {
+    "hu": "Rendvédelem és Országgyűlési Őrség",
+    "en": "Law enforcement and the Parliamentary Guard"
+  },
+  "19": {
+    "hu": "Költségvetési tanács, államadósság és különadók",
+    "en": "Fiscal Council, public debt and windfall taxes"
+  },
+  "20": {
+    "hu": "Végrehajtás, követeléskezelés és korrupcióellenes fellépés",
+    "en": "Debt enforcement, collection agencies and anti-corruption"
+  },
+  "21": {
+    "hu": "Adórendszer, költségvetési bevételek és otthonteremtés",
+    "en": "Tax system, budget revenue and housing policy"
+  },
+  "22": {
+    "hu": "Vagyonvisszaszerzés és a korrupció maffia-keretezése",
+    "en": "Asset recovery and the 'mafia' framing of corruption"
+  },
+  "23": {
+    "hu": "Üzemanyagárak és a védett ár",
+    "en": "Fuel prices and the capped price"
+  },
+  "24": {
+    "hu": "Kereszténység, egyházak és kultúrharc",
+    "en": "Christianity, churches and the culture war"
+  },
+  "25": {
+    "hu": "Névsorolvasás, bizottsági tagsági helyek, határozati formulák",
+    "en": "Roll-calls, committee seats and procedural resolutions",
+    "comment": "Pure procedure: the only topic with no question-time speeches at all."
+  },
+  "26": {
+    "hu": "Politikai reklám, plakátok és integritás hatóság",
+    "en": "Political advertising, billboards and the integrity authority"
+  },
+  "27": {
+    "hu": "Ipari parkok, tőkepiac és kkv-finanszírozás",
+    "en": "Industrial parks, capital markets and SME finance"
+  }
+}
