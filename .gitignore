@@ -1,0 +1,34 @@
+# Source literature — ground truth for the methods, never version controlled
+papers/
+
+# Raw exports. 32 MB and regenerable from the parlamonitor SQLite DB with
+# `backend/export_nlp_datasets.py --period 43`; data/raw/README.md says not to
+# commit them. The manifest and the README are committed instead — they are
+# the provenance record and they are small.
+data/raw/*.jsonl
+
+# Derived data is rebuildable; anything hand-verified belongs in git, so add
+# an exception for it rather than widening this.
+data/derived/
+exports/
+
+# Python-generated files
+__pycache__/
+*.py[oc]
+build/
+dist/
+wheels/
+*.egg-info
+
+# Virtual environments
+.venv
+
+# Test artifacts
+.coverage
+.hypothesis/
+
+# Jupyter checkpoints
+.ipynb_checkpoints/
+
+# Local harness / session state
+.claude/

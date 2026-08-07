@@ -1,0 +1,33 @@
+{
+  "period_number": 43,
+  "db": "/home/boa/parlament/backend/parlamonitor.db",
+  "db_data_updated_at": "2026-07-29T22:34:01.486174+00:00",
+  "speeches_dataset": {
+    "file": "cycle43-speeches.jsonl",
+    "rows": 1693,
+    "total_words_clean": 826775,
+    "skipped": {
+      "procedural": 2114,
+      "formulaic_type": 8,
+      "no_text": 154
+    },
+    "excluded_speech_types": [
+      "Eskü"
+    ]
+  },
+  "qa_dataset": {
+    "file": "cycle43-qa.jsonl",
+    "rows": 215,
+    "rows_text_complete": 202,
+    "by_kind": {
+      "interpellation": 68,
+      "immediate_question": 147
+    },
+    "unanswered": 0,
+    "incomplete_text_by_session": {
+      "43003": 1,
+      "43020": 12
+    },
+    "questions_outside_qa_agenda_items": 0
+  }
+}

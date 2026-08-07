@@ -1,0 +1,67 @@
+[project]
+name = "parlamonitor"
+version = "0.1.0"
+description = "Analysis of Hungarian parliamentary transcripts (cycle 43 exports)"
+readme = "README.md"
+authors = [
+    { name = "Zoltan Varju", email = "zoltan.varju@crowintelligence.org" },
+]
+requires-python = ">=3.12"
+
+# This is an analysis workspace, not a library for release: no PyPI
+# classifiers, keywords, or publish workflow. The `src/parlamonitor` package
+# exists so loaders and metrics are importable and testable from notebooks and
+# scripts alike, rather than copy-pasted between them.
+dependencies = [
+    # Crow packages, from PyPI. saphes and keyflux are the two that map
+    # directly onto this data; kenon and lexograph are here because trying
+    # them on it is the point of the workspace.
+    "saphes>=0.1",
+    "keyflux>=0.2",
+    "kenon>=0.1.2",
+    "lexograph>=0.1",
+    "pandas>=2.2",
+    "numpy>=1.26",
+    "matplotlib>=3.8",
+]
+
+[project.optional-dependencies]
+# Only relevant once the archive cycles (39-42) are exported alongside 43.
+diachronic = [
+    "chronowords>=0.3",
+]
+dev = [
+    "pytest>=8",
+    "pytest-cov",
+    "hypothesis>=6.100",
+    "ruff>=0.4",
+    "ty",
+    "jupyter>=1.0",
+    "ipykernel>=6.29",
+]
+
+[build-system]
+requires = ["uv_build>=0.9.22,<0.10.0"]
+build-backend = "uv_build"
+
+[tool.ruff]
+line-length = 88
+target-version = "py312"
+
+[tool.ruff.lint]
+select = ["E", "F", "I", "N", "UP", "ANN", "D"]
+ignore = ["D105", "D107"]
+
+[tool.ruff.lint.per-file-ignores]
+"tests/**" = ["D100", "D102", "D103", "D104", "ANN"]
+"scripts/**" = ["D100", "D103", "ANN"]
+"notebooks/**" = ["D100", "D103", "ANN"]
+
+[tool.ruff.lint.pydocstyle]
+convention = "google"
+
+[tool.pytest.ini_options]
+addopts = "--doctest-modules --tb=short"
+testpaths = ["src", "tests"]
+
+[tool.ty]
