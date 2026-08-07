@@ -21,7 +21,11 @@ dependencies = [
     "kenon>=0.1.2",
     "lexograph>=0.1",
     "pandas>=2.2",
-    "numpy>=1.26",
+    # Upper bound is numba's, not ours: numba 0.66 requires numpy<2.5, and
+    # bertopic reaches it through umap-learn -> pynndescent -> numba. Without
+    # the bound uv backtracks numba to a release whose llvmlite predates
+    # Python 3.10 and the resolution fails outright.
+    "numpy>=1.26,<2.5",
     "matplotlib>=3.8",
 ]
 
@@ -29,6 +33,17 @@ dependencies = [
 # Only relevant once the archive cycles (39-42) are exported alongside 43.
 diachronic = [
     "chronowords>=0.3",
+]
+# Task 2: unsupervised topic modeling. Kept out of the base install because
+# bertopic drags in umap-learn, hdbscan and numba.
+topics = [
+    "bertopic>=0.16",
+    "sentence-transformers>=3.0",
+    # 4.3.3 is the first release that stopped calling scipy.linalg.triu, which
+    # scipy removed in 1.13. The environment has scipy 1.18.
+    "gensim>=4.3.3",
+    "scikit-learn>=1.4",
+    "requests>=2.31",
 ]
 dev = [
     "pytest>=8",

@@ -54,6 +54,49 @@ The loaders deliberately do **not** filter. Anything that changes the numbers �
 a minimum word count for length-sensitive lexical diversity, dropping the
 incomplete Q&A pairs — is decided at the call site, where it is visible.
 
+## Task 2 — unsupervised topic modeling
+
+```bash
+uv sync --extra topics
+docker run --rm -d --name emtsv -p 5000:5000 mtaril/emtsv
+uv run python scripts/task2_bertopic.py --limit 40   # smoke run first
+uv run python scripts/task2_bertopic.py              # ~45 min
+```
+
+emtsv lemmatisation with a part-of-speech filter → Gensim bigram fusion →
+frequency-derived stopwords → BERTopic over chunked, mean-pooled huBERT
+embeddings. Outputs land in `data/derived/task2/`, next to a
+`run_manifest.json` recording every parameter, the model revision, the emtsv
+image digest, and the counts behind each stage.
+
+The lemmatisation pass is cached to `lemmatized.jsonl` keyed by speech uid, so
+a re-run only does what is missing and an interrupted run resumes.
+
+### Working with emtsv
+
+The API contract is easy to get wrong, so, concretely:
+
+```bash
+curl -X POST http://127.0.0.1:5000/tok/morph/pos -F 'text=A kormány benyújtotta.'
+```
+
+The **module chain is the URL path**, not a JSON field. There is no `lemma` or
+`lem` module — lemmas come out of `pos`. The response is **TSV**
+(`form wsafter anas lemma xpostag`), not JSON. The `anas` column carries every
+candidate analysis of every token and dwarfs the rest;
+`parlamonitor.emtsv.parse_tsv` discards it.
+
+### Where this departs from the task specification
+
+| Spec says | What is done | Why |
+| --- | --- | --- |
+| `POST /api/run` with `{"text":…, "modules":["tok","lemma"]}` | `POST /tok/morph/pos`, multipart `text` field | that endpoint and that payload do not exist; the spec's version returns 500 for every speech |
+| On API failure, return the raw text | Raise, record `ok: false`, exclude, report the count | the fallback plus the wrong endpoint would have yielded a fully unlemmatised corpus that still produces plausible topics |
+| `CountVectorizer.stop_words_` | Fit twice, take the difference | deprecated in scikit-learn 1.2, gone in the 1.9 installed here |
+| `fit_transform(phrased_speeches)` | Same documents for c-TF-IDF, but embeddings computed from `text_clean` | huBERT reads Hungarian, not lemma bags; topic *words* still come from the phrased text as specified |
+| — | Chunk each speech into 80-word windows and mean-pool | the model ships `max_seq_length=128` (~65–85 Hungarian words) against a 307-word median speech |
+| — | Content-word POS filter; seeded UMAP | tag filtering beats frequency thresholds, and unseeded UMAP makes runs unreproducible |
+
 ## Development
 
 ```bash
