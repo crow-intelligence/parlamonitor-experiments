@@ -17,7 +17,7 @@ from __future__ import annotations
 
 import hashlib
 import json
-from collections.abc import Container, Iterable, Sequence
+from collections.abc import Container, Iterable, Mapping, Sequence
 from dataclasses import dataclass
 from typing import Protocol
 
@@ -132,6 +132,51 @@ def embedding_cache_key(**config: object) -> str:
         16
     """
     payload = json.dumps(config, sort_keys=True, ensure_ascii=False, default=str)
+    return hashlib.sha256(payload.encode("utf-8")).hexdigest()[:16]
+
+
+def topic_fingerprint(topics: Mapping[int, Sequence[str]]) -> str:
+    """Hash a topic model's identity: which topic id carries which terms.
+
+    Topic ids are positional, not stable. Change the stoplist, the seed or the
+    corpus and HDBSCAN renumbers everything, so a file keyed by topic id --
+    ``data/labels/task2_topic_names.json``, for instance -- silently comes to
+    describe different topics. A fingerprint turns that from a warning in a
+    comment into something a script can check.
+
+    Args:
+        topics: Topic id to its ordered top terms. Insertion order is
+            irrelevant; term order within a topic is not, since it is part of
+            what the model produced.
+
+    Returns:
+        The first 16 hex characters of the SHA-256 of the canonical form.
+
+    Raises:
+        ValueError: If ``topics`` is empty. A fingerprint over nothing would
+            compare equal to every other empty model.
+
+    Example:
+        >>> a = topic_fingerprint({0: ["kormány", "vita"], 1: ["vasút"]})
+        >>> a == topic_fingerprint({1: ["vasút"], 0: ["kormány", "vita"]})
+        True
+        >>> len(a)
+        16
+
+        Renumbering the same topics changes it, which is the whole point:
+
+        >>> a == topic_fingerprint({1: ["kormány", "vita"], 0: ["vasút"]})
+        False
+
+        So does changing a single term:
+
+        >>> a == topic_fingerprint({0: ["kormány", "vita"], 1: ["vasúti"]})
+        False
+    """
+    if not topics:
+        raise ValueError("cannot fingerprint an empty topic model")
+    canonical = [[int(topic), list(terms)] for topic, terms in sorted(topics.items())]
+    payload = json.dumps(canonical, sort_keys=True, ensure_ascii=False)
     return hashlib.sha256(payload.encode("utf-8")).hexdigest()[:16]
 
 

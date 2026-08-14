@@ -3,7 +3,9 @@
     "what": "Hand-authored names for the BERTopic topics of cycle 43.",
     "derived_from": "data/derived/task2/bertopic_topics.csv, seed 42, min_cluster_size 10, strip-salutation-1",
     "status": "DRAFT. Written by reading each topic's c-TF-IDF terms and its highest-probability documents. Not yet checked by a human; scripts/task2_label_topics.py attaches a verbatim quote to each so verification is a string match rather than a reread.",
-    "note": "Keyed by topic id. Re-running the model with different parameters renumbers the topics, so check the run manifest before trusting these."
+    "note": "Keyed by topic id. Re-running the model with different parameters renumbers the topics, which would silently make every name below describe a different topic.",
+    "fingerprint": "94be2b7b27317585",
+    "fingerprint_note": "SHA-256 prefix over the topic id -> top terms mapping of the model these names were written against. `make verify-model` fails if the saved model no longer matches. Regenerate the names, do not edit this by hand."
   },
   "-1": {
     "hu": "Nem besorolt maradék",

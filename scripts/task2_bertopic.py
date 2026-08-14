@@ -51,6 +51,7 @@ from parlamonitor.topics import (
     dynamic_stopwords,
     embed_documents,
     embedding_cache_key,
+    topic_fingerprint,
 )
 
 DEFAULT_OUTPUT_DIR = Path(__file__).resolve().parents[1] / "data" / "derived" / "task2"
@@ -96,6 +97,13 @@ def parse_args(argv=None):
         "--embed-source", choices=("text_clean", "phrased"), default="text_clean"
     )
     parser.add_argument("--refresh-cache", action="store_true")
+    parser.add_argument(
+        "--model-dir",
+        type=Path,
+        default=Path(__file__).resolve().parents[1] / "models" / "task2_bertopic",
+        help="committed safetensors model; the pickle goes next to the outputs",
+    )
+    parser.add_argument("--no-save-model", action="store_true")
     return parser.parse_args(argv)
 
 
@@ -210,6 +218,57 @@ def model_revision(model_id):
         return model_info(model_id).sha
     except Exception:  # noqa: BLE001 - provenance is best-effort, never fatal
         return None
+
+
+def library_versions():
+    """Versions the saved model was written under.
+
+    BERTopic's own documentation says a model saved under one version should
+    not be loaded under another, so the versions belong beside the artifact
+    rather than in a lockfile the model may travel without.
+    """
+    import importlib.metadata as md
+
+    versions = {}
+    for name in ("bertopic", "umap-learn", "hdbscan", "scikit-learn", "numpy", "torch"):
+        try:
+            versions[name] = md.version(name)
+        except md.PackageNotFoundError:
+            versions[name] = None
+    return versions
+
+
+def save_model(topic_model, topic_info, *, model_dir, pickle_path, embedding_model):
+    """Save both serializations and prove the committed one reloads.
+
+    Returns the sizes on disk. A save that cannot be loaded is worse than no
+    save at all -- it looks like insurance and is not -- so the safetensors
+    copy is reloaded and checked against the in-memory model before the run is
+    allowed to report success.
+    """
+    from bertopic import BERTopic
+
+    model_dir.parent.mkdir(parents=True, exist_ok=True)
+    topic_model.save(
+        str(model_dir),
+        serialization="safetensors",
+        save_ctfidf=True,
+        save_embedding_model=embedding_model,
+    )
+    topic_model.save(str(pickle_path), serialization="pickle")
+
+    reloaded = BERTopic.load(str(model_dir))
+    reloaded_info = reloaded.get_topic_info()
+    if len(reloaded_info) != len(topic_info):
+        raise RuntimeError(
+            f"saved model reloads with {len(reloaded_info)} topics, "
+            f"expected {len(topic_info)}"
+        )
+    if list(reloaded_info.Topic) != list(topic_info.Topic):
+        raise RuntimeError("saved model reloads with different topic ids")
+
+    directory_size = sum(f.stat().st_size for f in model_dir.rglob("*") if f.is_file())
+    return directory_size, pickle_path.stat().st_size
 
 
 def normalise(speeches, *, strip):
@@ -405,6 +464,36 @@ def main(argv=None):  # noqa: PLR0915 - a linear pipeline reads better in one pi
     n_reduced = sum(1 for t in reduced if t == -1)
     log(f"after reduce_outliers: {n_reduced} outliers ({n_reduced / len(reduced):.1%})")
 
+    # --- persist the fitted model ------------------------------------------
+    fingerprint = topic_fingerprint(
+        {
+            int(t): [term for term, _ in topic_model.get_topic(int(t))]
+            for t in topic_info.Topic
+        }
+    )
+    log(f"topic fingerprint: {fingerprint}")
+    model_info = {"fingerprint": fingerprint, "versions": library_versions()}
+    if not args.no_save_model:
+        pickle_path = args.output_dir / "model.pkl"
+        safetensors_bytes, pickle_bytes = save_model(
+            topic_model,
+            topic_info,
+            model_dir=args.model_dir,
+            pickle_path=pickle_path,
+            embedding_model=args.model,
+        )
+        log(
+            f"saved model: {args.model_dir} ({safetensors_bytes / 1e6:.1f} MB, "
+            f"safetensors, reload verified) + "
+            f"{pickle_path.name} ({pickle_bytes / 1e6:.1f} MB, pickle)"
+        )
+        model_info |= {
+            "safetensors_dir": str(args.model_dir),
+            "safetensors_bytes": safetensors_bytes,
+            "pickle_path": str(pickle_path),
+            "pickle_bytes": pickle_bytes,
+        }
+
     # --- question time versus debate ---------------------------------------
     roles = [discourse_role(s) for s in kept_speeches]
     per_class = topic_model.topics_per_class(phrased_speeches, classes=roles)
@@ -437,6 +526,7 @@ def main(argv=None):  # noqa: PLR0915 - a linear pipeline reads better in one pi
 
     manifest = {
         "source": provenance(),
+        "model": model_info,
         "roles": role_check,
         "parameters": {
             "limit": args.limit,

@@ -138,11 +138,48 @@ cross-checked against the Q&A file's turn list (`src/parlamonitor/roles.py`):
 `task2_compare.py` adds the lexical half with keyflux: log-likelihood keyness,
 log ratio for effect size, rank-turbulence divergence and an allotaxonograph.
 
+### The saved model
+
+The fitted model is written twice, because neither format does both jobs:
+
+| artifact | size | in git | restores |
+| --- | --- | --- | --- |
+| `models/task2_bertopic/` | 1.9 MB | **yes** | topics, c-TF-IDF, a pointer to the encoder |
+| `data/derived/task2/model.pkl` | 452 MB | no | all of that **plus** the fitted UMAP and HDBSCAN |
+
+```python
+from bertopic import BERTopic
+model = BERTopic.load("models/task2_bertopic")
+model.get_topic(9)   # [('gazdálkodó', …), ('agrárkamara', …), …]
+```
+
+The safetensors copy is committed because it is what the 29 hand-authored topic
+names actually refer to; without it those names depend on a re-run reproducing
+exactly. **It does not carry UMAP or HDBSCAN** — `umap_model` and
+`hdbscan_model` come back as `BaseDimensionalityReduction` and `BaseCluster`
+placeholders. So `transform()` on it assigns new speeches by similarity to
+topic embeddings, *not* by the HDBSCAN path the original run used. For that,
+load the pickle, whose `hdbscan_model` still has its `prediction_data_`.
+
+The pickle is gitignored and version-locked: BERTopic will not load a model
+across library versions, so `run_manifest.json` records the versions of
+`bertopic`, `umap-learn`, `hdbscan`, `scikit-learn`, `numpy` and `torch` it was
+written under.
+
+**The run is reproducible.** Re-running with both caches warm reproduces the
+topic assignments bit-for-bit — 100.0000% identical on `topic` and
+`topic_reduced`, zero drift in `probability`. That is what makes topic ids
+safe to key the names file on.
+
 ### Topic names
 
 `data/labels/task2_topic_names.json` holds hand-authored Hungarian and English
 names for every topic; it is committed because hand-verified work is not
-rebuildable. `task2_label_topics.py` joins it to the model output and attaches
+rebuildable. It records the **fingerprint** of the model it was written
+against — a hash of the topic-id-to-terms mapping — and `make verify-model`
+fails if the saved model no longer matches. Topic ids are positional, so
+without that check a renumbering would leave every name quietly describing a
+different topic. `task2_label_topics.py` joins it to the model output and attaches
 a **verbatim quote** containing the topic's own top terms, so checking a name
 is a string match rather than a reread. Every row carries
 `checked_by_human=false` until someone says otherwise.
