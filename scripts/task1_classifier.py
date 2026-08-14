@@ -92,6 +92,16 @@ def read_cache(path):
     return cached
 
 
+def model_revision(model_id):
+    """Return the pinned HF commit for the model, or None if offline."""
+    try:
+        from huggingface_hub import model_info
+
+        return model_info(model_id).sha
+    except Exception:  # noqa: BLE001 - provenance is best-effort, never fatal
+        return None
+
+
 def classify(classifier, texts, *, batch_size):
     """Return a full label distribution for each text."""
     outputs = classifier(list(texts), batch_size=batch_size, top_k=None)
@@ -286,6 +296,7 @@ def main(argv=None):
         "source": provenance(),
         "parameters": {
             "model": args.model,
+            "revision": model_revision(args.model),
             "threshold": args.threshold,
             "threshold_source": "model card: below 0.60 annotated as Mix",
             "max_length": MAX_TOKENS,
