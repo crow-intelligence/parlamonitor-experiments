@@ -7,6 +7,11 @@ papers/
 # the provenance record and they are small.
 data/raw/*.jsonl
 
+# The parentheticals exports, same policy: 12 MB of raw text, regenerable, and
+# the provenance that matters (sha256 per file, line and word counts) is
+# recorded in data/derived/parentheticals/manifest.json instead.
+data/raw/parantheticals/
+
 # Derived data is rebuildable; anything hand-verified belongs in git, so add
 # an exception for it rather than widening this.
 data/derived/

@@ -287,11 +287,30 @@ def embed_documents(
     return pooled / norms
 
 
+HU_CONNECTOR_WORDS: frozenset[str] = frozenset(
+    {"a", "az", "és", "s", "valamint", "illetve", "vagy", "de"}
+)
+"""Function words a phrase may contain but may not begin or end with.
+
+Gensim treats connector words specially: they never anchor a phrase, but they
+are allowed inside one. That is what separates the formula ``taps#a#
+kormánypárt#sor`` -- a real fixed expression of this corpus -- from the junk
+bigram ``köszön#a``, which is only frequent because ``a`` is.
+
+Deliberately short: the definite articles and the coordinating conjunctions,
+nothing else. A long list here would silently glue unrelated content words
+together across the words it hides.
+"""
+
+
 def build_phrases(
     tokenized_corpus: Iterable[list[str]],
     *,
     min_count: int = 5,
     threshold: float = 10.0,
+    scoring: str = "default",
+    delimiter: str = "_",
+    connector_words: frozenset[str] = frozenset(),
 ) -> FrozenPhrases:
     """Train a Gensim bigram model and return it frozen for application.
 
@@ -300,10 +319,10 @@ def build_phrases(
     default ``token_pattern`` treats ``_`` as a word character, so the fused
     token survives vectorisation intact.
 
-    No ``connector_words`` are configured. The usual reason to need them --
-    bigrams like ``a_kormány`` forming around function words -- does not arise
-    here because the corpus has already been reduced to content-word lemmas by
-    :func:`parlamonitor.emtsv.lemmatize`.
+    ``connector_words`` defaults to empty, which is right for a corpus already
+    reduced to content-word lemmas by :func:`parlamonitor.emtsv.lemmatize`.
+    Pass :data:`HU_CONNECTOR_WORDS` when the function words are still present,
+    as they are in the parentheticals corpus.
 
     Args:
         tokenized_corpus: One token list per document. Consumed once, so pass
@@ -316,6 +335,18 @@ def build_phrases(
             the score scales with **vocabulary size**. A threshold that is
             sensible on a corpus of tens of thousands of types will fuse
             nothing at all on a toy corpus of five.
+        scoring: Gensim's collocation score. Defaults to ``"default"``, the
+            vocabulary-scaled scorer described above. Pass ``"npmi"`` for
+            normalised pointwise mutual information, which is bounded in
+            ``[-1, 1]`` and so means the same thing on corpora of different
+            size -- the one to use when the same threshold must apply across
+            several subcorpora. Sensible NPMI thresholds are around 0.3-0.7.
+        delimiter: What detected phrases are joined with. Defaults to ``"_"``.
+            Note that scikit-learn's default ``token_pattern`` treats ``_`` as
+            a word character but **not** ``#``, so a corpus fused with ``"#"``
+            needs its own ``token_pattern`` if it is later vectorised.
+        connector_words: Words a phrase may span but not start or end with.
+            Defaults to none. See :data:`HU_CONNECTOR_WORDS`.
 
     Returns:
         A :class:`~gensim.models.phrases.FrozenPhrases`, which applies faster
@@ -326,12 +357,36 @@ def build_phrases(
         >>> phrases = build_phrases(corpus, min_count=5, threshold=1.0)
         >>> phrases[["költségvetési", "hiány", "tétel0"]]
         ['költségvetési_hiány', 'tétel0']
+
+        NPMI with a different delimiter, as the parentheticals analysis uses:
+
+        >>> phrases = build_phrases(
+        ...     corpus, min_count=5, threshold=0.5, scoring="npmi", delimiter="#"
+        ... )
+        >>> phrases[["költségvetési", "hiány", "tétel0"]]
+        ['költségvetési#hiány', 'tétel0']
+
+        A connector word is carried inside the phrase, never at its edge:
+
+        >>> corpus = [["taps", "a", "kormánypárt", f"x{i}"] for i in range(40)]
+        >>> phrases = build_phrases(
+        ...     corpus,
+        ...     min_count=5,
+        ...     threshold=0.1,
+        ...     scoring="npmi",
+        ...     delimiter="#",
+        ...     connector_words=HU_CONNECTOR_WORDS,
+        ... )
+        >>> phrases[["taps", "a", "kormánypárt", "x0"]]
+        ['taps#a#kormánypárt', 'x0']
     """
     model = Phrases(
         tokenized_corpus,
         min_count=min_count,
         threshold=threshold,
-        connector_words=frozenset(),
+        scoring=scoring,
+        delimiter=delimiter,
+        connector_words=connector_words,
     )
     return model.freeze()
 

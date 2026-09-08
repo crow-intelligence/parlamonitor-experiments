@@ -134,3 +134,101 @@ inferred.
 | Topics | 30 | 28 |
 | Boilerplate topic | 66 speeches | gone (37 residual, topic 12) |
 | Light verbs in labels | `tud`, `mond`, `kell`, `beszél` | none |
+
+---
+
+# Task 3 — parentheticals: lemmatised frequencies with fused n-grams
+
+Branch `feat/parentheticals-frequency`. A frequency analysis of the 261,935
+note-taker stage directions in `data/raw/parantheticals/`, cycles 39–43:
+lemmatised with emtsv, significant bigrams and trigrams fused into single
+`#`-joined tokens, counted per cycle and pooled, raw and relative.
+
+The analysis itself is `data/derived/parentheticals/REPORT.md`. What follows is
+what the code does and what a human still has to decide.
+
+**New:** `src/parlamonitor/parentheticals.py` (loading, duplicate collapsing,
+line statistics), `src/parlamonitor/frequency.py` (counting, tidy frames,
+NPMI), `src/parlamonitor/propernouns.py` (party-name repair),
+`scripts/parentheticals_freq.py`, plus three test modules.
+
+**Changed, backwards-compatibly:** `emtsv.py` gains sentence-aware parsing and
+batched line-aligned analysis (`Token` gains a defaulted `wsafter`; `parse_tsv`
+is now a flattening of `parse_tsv_sentences`, same signature and behaviour).
+`topics.py`'s `build_phrases` gains `scoring`, `delimiter` and
+`connector_words`, all defaulting to today's behaviour — `make verify-model`
+confirms the pinned topic model fingerprint is unchanged.
+
+## What needs a human call (Task 3)
+
+1. **Is the duplication real?** 21.1% of cycle 41's lines repeat the line before
+   them, against 5–8% elsewhere. Collapsing consecutive runs removes 93% of
+   `Bóna#Zolta#jelzés` (8,721 → 611) and 47% of `folyamatos#sípolás`
+   (19,961 → 10,633). A procedural cue is not plausibly issued 8,721 times with
+   93% of them back to back, so at least part of this is an extraction artifact
+   — but it cannot be settled from these files, which carry no sitting, date or
+   speech identifier to check against. Both readings are in every CSV
+   (`raw` and `raw_collapsed`); **nothing was silently chosen.** Resolving it
+   properly means re-exporting the parentheticals with a sitting identifier.
+
+2. **Party-name repair is a four-entry list, not a gazetteer.** emMorph reads
+   `Jobbik` as the comparative adjective *jobbik* and lemmatises it to `jó`,
+   20,705 times. Four names are repaired; MP surnames that are also common
+   words are not (`Bősz` → `bősz`, `Heringes` → `heringes`, `Borbély` →
+   `borbély`). The counts are correct either way — the token is still one unit
+   — but the display forms are wrong, and fixing them means sourcing a list of
+   ~200 sitting MPs. Whether that is worth doing is a call about what the
+   output is for.
+
+3. **`Mi Hazánk` is not repaired.** It needs a rule spanning two tokens, which
+   the form-keyed override cannot express. It surfaces as `mi#haza`.
+
+## Decisions that change the numbers (Task 3)
+
+All are parameters, all defaulted deliberately, all in
+`data/derived/parentheticals/manifest.json`.
+
+| decision | default | flag |
+| --- | --- | --- |
+| N-gram score | NPMI, threshold 0.5, `min_count` 5, two passes | `--scoring`, `--threshold`, `--min-count`, `--no-trigrams` |
+| Phrase model scope | fitted once on all cycles pooled, as-is view | — |
+| Connector words | articles/conjunctions inside a phrase but not at its edge | `--no-connector-words` |
+| Proper-noun repair | on, four capitalised forms, 22,634 tokens | `--no-proper-noun-repair` |
+| Soft hyphens | stripped (1,255, all cycle 40) | — |
+| Punctuation | dropped before detection and counting (503,112 tokens) | — |
+| Case | preserved as emtsv produced it | — |
+
+NPMI rather than Gensim's default scorer because it is bounded in [-1, 1] and
+so means the same on cycle 43 (23,007 tokens) as on cycle 41 (330,888); the
+default scorer scales with vocabulary size and is not comparable across them.
+
+## Where the toolchain did not hold
+
+- **Gensim's NPMI scores leave [-1, 1] on the second pass** — 621 of 3,524 —
+  because pass 2 scores against a corpus pass 1 has already fused. The n-gram
+  table carries an `npmi` column recomputed from the unfused counts, with the
+  component counts beside it, and keeps `gensim_score` only to show what the
+  detector saw.
+- **emtsv converts U+00AD to U+FFFD and tokenises around it**, so
+  `hát<shy>oldalán` came back as `hát`, `<?>`, `oldalán`. Found because the
+  batch reconstruction check failed on those lines. Stripping the soft hyphen
+  is lossless and removed 357 spurious types from cycle 40.
+- **Batching is only sound if it can be verified.** Responses are mapped back
+  onto input lines via the newlines `tok` records in `wsafter`, and a batch
+  that will not reconstruct its own request body character-for-character is
+  re-sent one line at a time. Zero fallbacks on the final corpus.
+
+## Left alone deliberately (Task 3)
+
+- **`data/raw/` is untouched.** Soft-hyphen stripping happens on load, is
+  versioned by `NORMALISATION_VERSION`, and is reported per cycle.
+- **Four U+FFFD tokens remain**, from four stray C1 control characters in cycle
+  40 (U+0084, U+0094, U+0096 ×2). Too rare to justify a rule; documented
+  instead.
+- **One delimiter collision.** Two cycle-40 lines quote hashtag badges
+  (`#I stand with CEU`), so one lemma contains a literal `#`. Excluded from the
+  n-gram table, warned about at run time, counted in the manifest. Changing the
+  delimiter was not done — the task specifies `#`.
+- **No stopword filtering of the counted stream.** Every lemma is counted and
+  carries `pos_category`, `is_content` and `is_stopword`, so the content-word
+  view is one filter away rather than baked in.

@@ -29,6 +29,14 @@ editable, which is what lets the loaders find `data/raw/` by repository layout.
 | `cycle43-qa.jsonl` | 215 question-answer exchanges (202 with text on both sides) | no |
 | `cycle43-manifest.json` | row counts and what was filtered out | yes |
 | `README.md` | field-by-field schema and normalisation rules | yes |
+| `parantheticals/cycle{39..43}-parentheticals.txt` | 261,935 note-taker stage directions across five cycles | no |
+
+The `parantheticals/` files (the directory is spelled as the export spells it)
+are a different register from the speeches: one bracketed remark per line, no
+metadata column of any kind, a mean of 6.1 words per line. They are the
+editorial stage directions that `text_clean` strips out of the speeches —
+applause, heckling, the chair's bell — collected instead of discarded. Task 3
+counts them.
 
 Rebuild them from the application:
 
@@ -208,6 +216,48 @@ candidate analysis of every token and dwarfs the rest;
 | `fit_transform(phrased_speeches)` | Same documents for c-TF-IDF, but embeddings computed from `text_clean` | huBERT reads Hungarian, not lemma bags; topic *words* still come from the phrased text as specified |
 | — | Chunk each speech into 80-word windows and mean-pool | the model ships `max_seq_length=128` (~65–85 Hungarian words) against a 307-word median speech |
 | — | Content-word POS filter; seeded UMAP | tag filtering beats frequency thresholds, and unseeded UMAP makes runs unreproducible |
+
+## Task 3 — parentheticals: lemmatised frequencies with fused n-grams
+
+```bash
+docker run --rm -d --name emtsv -p 5000:5000 mtaril/emtsv
+uv run python scripts/parentheticals_freq.py --limit 2000   # smoke run
+uv run python scripts/parentheticals_freq.py                # full corpus
+```
+
+Writes to `data/derived/parentheticals/`: `token_frequencies.csv` (one row per
+cycle and token, plus `ALL` rows), a wide pivot of the same, an n-gram table,
+per-cycle line statistics, the fitted phrase model, and a `manifest.json`.
+**`REPORT.md` in that directory is the analysis**; what follows is how it is
+built.
+
+Every distinct line goes through emtsv **once** and is cached to
+`lemma_cache.jsonl` — 63,849 of the 261,935 lines are distinct, so this is a
+4× saving, and it makes a re-run with different thresholds take a minute rather
+than half an hour. Lines are batched ~250 at a time and mapped back onto their
+inputs using the newlines `tok` records in `wsafter`; a batch that will not
+reconstruct its own request body is re-sent one line at a time rather than
+trusted.
+
+Significant bigrams and trigrams are fused into single `#`-joined tokens
+(`taps#a#kormánypárt#sor`) by two Gensim passes scored with NPMI, fitted once on
+all five cycles pooled so the per-cycle columns stay comparable.
+
+### Decisions that change the numbers
+
+| decision | default | flag |
+| --- | --- | --- |
+| Duplicate lines | counted both as-is and with consecutive runs collapsed, side by side | — |
+| N-gram score | NPMI, threshold 0.5, `min_count` 5, two passes | `--scoring`, `--threshold`, `--min-count`, `--no-trigrams` |
+| Connector words | articles and conjunctions may sit inside a phrase, not at its edge | `--no-connector-words` |
+| Party names | `Jobbik`, `Momentum`, `Párbeszéd`, `Együtt` repaired — emMorph reads `Jobbik` as *jobbik* and lemmatises it to `jó` | `--no-proper-noun-repair` |
+| Soft hyphens | stripped; emtsv turns U+00AD into U+FFFD and splits the word | — |
+| Punctuation | dropped before detection and counting | — |
+
+21% of cycle 41's lines repeat the line before them, against 5–8% elsewhere, and
+collapsing removes 93% of `Bóna#Zolta#jelzés` and 47% of `folyamatos#sípolás`.
+Prefer `raw_collapsed` when comparing cycle 41 with the others; `REPORT.md`
+argues the case.
 
 ## Development
 
