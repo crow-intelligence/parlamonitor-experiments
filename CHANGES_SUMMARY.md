@@ -232,3 +232,73 @@ default scorer scales with vocabulary size and is not comparable across them.
 - **No stopword filtering of the counted stream.** Every lemma is counted and
   carries `pos_category`, `is_content` and `is_stopword`, so the content-word
   view is one filter away rather than baked in.
+
+---
+
+# Task 4 — reaction scores: who caused the laughter, applause and noise
+
+Same branch. Classifies the parentheticals into reaction events and scores MPs
+on the reactions their speeches drew. The analysis is
+`data/derived/reactions/REPORT.md`.
+
+**New:** `src/parlamonitor/reactions.py` (the taxonomy: kind, intensity,
+audience, named interjector, per-cycle government mapping),
+`scripts/reaction_scores.py`, `tests/test_reactions.py`.
+
+Everything is rule-based and every rule is a named constant. The vocabulary was
+read off the corpus frequency table from Task 3, not invented — a classifier
+here would put a model's guess between the transcript and the count for no gain.
+
+## What needs a human call (Task 4)
+
+1. **MP-level scores exist for cycle 43 only.** The parentheticals files record
+   who reacted, never who provoked it; linking a reaction to a speaker needs the
+   speech around it, and only cycle 43 has a speeches export. Cycles 39–42 need
+   `backend/export_nlp_datasets.py --period 39..42` before they can be scored.
+   Corpus-level reaction counts and the 703-name heckler table already cover all
+   five cycles.
+
+2. **`derültség` is amusement, not humour.** In cycle 43 every opposition MP in
+   the laughter top five draws most of their laughter from the *government*
+   benches — the chamber laughing at them, not with them. The own-side /
+   other-side columns make this visible but cannot resolve it; calling anyone
+   "funniest" is an editorial judgement on top of these numbers, not a reading
+   of them.
+
+3. **Intensity weights are a judgement.** A standing ovation scores 3.0 and a
+   scattered clap 0.5. Nothing in the transcript says so. Every weighted column
+   has its unweighted count beside it so the weighting can be discarded.
+
+## Decisions that change the numbers (Task 4)
+
+| decision | default |
+| --- | --- |
+| Attribution | the floor-holder, except heckles, which go to their named interjector |
+| Government mapping | Fidesz–KDNP for 39–42; TISZA for 43, derived from the export's ministerial offices |
+| Bench of a factionless minister | government, inferred from holding executive office; recorded in `side_source` |
+| Multi-kind events | `Derültség és taps` counts toward both, so per-kind totals exceed the event count by ~1.7% |
+| Unattributed reactions | 11.5% name no bench; carried in `*_unattributed`, never assigned a side |
+| Minimum speeches | 5, flagged not filtered — rate columns are noisy below it |
+
+## Bugs found and fixed while building it
+
+- **`re.IGNORECASE` on the interjection pattern made the capitalised-token
+  classes match lowercase**, so `Közbeszólás az MSZP soraiból: Hazudik!` was
+  read as a person named "Közbeszólás az MSZP soraiból" — 3,541 events across
+  147 fake names. Case sensitivity is now scoped to the honorific, and a
+  candidate matching a reaction or bench phrase is reclassified as that
+  reaction with the quote kept.
+- **A single capitalised word before a colon is procedure, not a person**:
+  `Szünet: 14.19`, `Elnök: Igen.`, `Jelenlét-ellenőrzés: …` — 1,538 events. An
+  interjector must now have a full name, which costs 5 genuine surname-only
+  events across five cycles.
+- **NaN is truthy**, so factionless speakers were indexing a
+  `laughter_from_nan` column. They now get no side rather than a wrong one.
+
+## Left alone deliberately (Task 4)
+
+- **`Z. Kárpát Dániel` merges into `Kárpát Dániel`** — the leading initial reads
+  as a title. One name in 703; fixing it means special-casing initials.
+- **No sentiment or humour model.** The tables report what the note-taker wrote
+  down. Deciding whether a laugh was with or at a speaker is left to the
+  own-side/other-side columns and a reader.

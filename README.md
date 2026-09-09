@@ -259,6 +259,42 @@ collapsing removes 93% of `Bóna#Zolta#jelzés` and 47% of `folyamatos#sípolás
 Prefer `raw_collapsed` when comparing cycle 41 with the others; `REPORT.md`
 argues the case.
 
+## Task 4 — reaction scores: laughter, applause, heckling
+
+```bash
+uv run python scripts/reaction_scores.py
+```
+
+Writes to `data/derived/reactions/`; **`REPORT.md` there is the analysis.**
+Classifies 233,584 reaction events across cycles 39–43 by kind (applause,
+laughter, heckling, whistling, noise, uproar, booing, the chair's bell),
+intensity (`szórványos` → `felállva tapsolnak`) and which benches responded.
+
+Attribution is limited by what the exports carry, so the tables split three ways:
+
+| table | scope | why |
+| --- | --- | --- |
+| reaction events and summary | cycles 39–43 | the parentheticals say who *reacted* |
+| `heckler_scores.csv` — 703 named interjectors | cycles 39–43 | the heckler's name is inside the parenthetical: `Vadai Ágnes: Nem hallom!` |
+| `mp_reaction_scores.csv` | **cycle 43 only** | linking a reaction to the MP who caused it needs the speech around it, and only cycle 43 has a speeches export |
+
+**The attribution rule:** a reaction is credited to whoever held the floor when
+it was recorded. Right for applause and laughter, wrong for a heckle — so
+heckles go to their named interjector and appear on the speaker's row only as
+`heckles_received`.
+
+MP scores come in four normalisations side by side (raw, per speech, per 1,000
+words, per minute of floor time) because they rank people differently, and are
+split by whether the reaction came from the speaker's **own** benches or the
+**other** side. That split is the point: in cycle 43 every opposition MP in the
+laughter top five draws most of their laughter from the government benches,
+which is derision rather than wit. `derültség` records amusement, not humour.
+
+Government/opposition flips between cycles — Fidesz–KDNP in 39–42, TISZA in 43
+— so it is an explicit per-cycle mapping in `reactions.GOVERNING_PARTIES`,
+derived for cycle 43 from the export's own ministerial offices rather than
+assumed.
+
 ## Development
 
 ```bash
