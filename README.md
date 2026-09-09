@@ -295,6 +295,31 @@ Government/opposition flips between cycles — Fidesz–KDNP in 39–42, TISZA i
 derived for cycle 43 from the export's own ministerial offices rather than
 assumed.
 
+### Who heckled whom — the directed network
+
+```bash
+uv run python scripts/heckle_network.py
+```
+
+An edge runs from the interjector named inside a parenthetical to whoever held
+the floor. Cycle 43: 916 named interjections, 913 (99.7%) resolved to a known
+speaker, 103 nodes, 294 edges, no self-loops. Both ends carry a faction, so the
+graph rolls up to party or to government/opposition.
+
+`data/derived/reactions/NETWORK.md` documents the outputs and the d3 contract.
+The short version: `heckle_edges.csv` is the atomic record, and
+`heckle_network.json` is written with `edges="links"` because networkx 3.6
+defaults that key to `"edges"`, which `d3.forceSimulation` does not read. Party-
+and side-level roll-ups ship as their own node-link files; GraphML is there for
+Gephi.
+
+Heckling is overwhelmingly cross-bench: 804 of the 913 interruptions where both
+sides are known go from one side of the house to the other. Two limits are
+structural — the network is cycle 43 only, because an edge needs a floor-holder
+and that is the only cycle with a speeches export; and 41% of that cycle's named
+interjections happen outside any speech (voting, procedure, the opening
+ceremony), so they have no target and are not in the graph.
+
 ## Development
 
 ```bash

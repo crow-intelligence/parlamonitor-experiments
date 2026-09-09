@@ -27,6 +27,10 @@ dependencies = [
     # Python 3.10 and the resolution fails outright.
     "numpy>=1.26,<2.5",
     "matplotlib>=3.8",
+    # Imported directly by parlamonitor.interactions for the heckling network.
+    # It arrives transitively through kenon, but a direct import deserves a
+    # direct declaration.
+    "networkx>=3.0",
 ]
 
 [project.optional-dependencies]
