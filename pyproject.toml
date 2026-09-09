@@ -49,6 +49,16 @@ topics = [
     "scikit-learn>=1.4",
     "requests>=2.31",
 ]
+# Tasks 5-6: readability, affect and keyword extraction over the speeches.
+# Out of the base install for the same reason as `topics`: keybert reaches
+# sentence-transformers and transformers reaches torch, which together are
+# larger than everything else here put together. saphes itself is in the core.
+metrics = [
+    "keybert>=0.9",
+    "sentence-transformers>=3.0",
+    "transformers>=4.40",
+    "torch>=2.0",
+]
 dev = [
     "pytest>=8",
     "pytest-cov",

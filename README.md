@@ -320,6 +320,48 @@ and that is the only cycle with a speeches export; and 41% of that cycle's named
 interjections happen outside any speech (voting, procedure, the opening
 ceremony), so they have no target and are not in the graph.
 
+## Task 5 — readability, affect and keywords
+
+```bash
+uv sync --extra metrics
+docker run --rm -d --name emtsv -p 5000:5000 mtaril/emtsv
+uv run python scripts/speech_metrics.py    # readability, diversity, keywords
+uv run python scripts/speech_affect.py     # sentiment, emotion
+uv run python scripts/validate_affect.py   # does the affect actually work?
+```
+
+`data/derived/metrics/REPORT.md` is the analysis. 1,693 cycle-43 speeches.
+
+**Readability** via `saphes`, with three non-default choices: the long-word
+threshold is **8** (`recommended_threshold("hu")`, not LIX's Swedish 6), length
+is counted in **letters** not characters (`asszony` is 7 characters but 5
+letters), and sentences come from **emtsv** rather than a punctuation regex.
+LIX mean 39.7 at 17.2 words per sentence. Two `jegyzői ismertetés` records —
+the notary's roll-call, 590 words with no full stop, LIX 594 — are flagged
+`readability_reliable = false` and excluded from per-MP means.
+
+**Keywords**, two methods: TextRank over a co-occurrence graph of content
+lemmas (networkx, no model), and KeyBERT over huBERT embeddings. KeyBERT's
+candidates come from the lemma stream, so a returned bigram is two content
+words adjacent after function words were dropped — themes, not quotations.
+
+**Sentiment and emotion** from three models, **none of which declares its
+labels**. The script therefore calibrates before it scores, deriving the
+index-to-label mapping from probes of known valence and writing the confusion
+matrix into the manifest.
+
+Probes turned out to be a weak test in both directions, so reliability is
+decided on the corpus by `validate_affect.py`, which checks valence agreement,
+cross-model agreement and saturation. It flags **`emotion_hu_fear`**
+(mean 0.64, r = −0.04 with valence — saturated and signal-free) and
+**`emotion_hu_sadness`** (r = **+0.11**, the wrong sign). Use the
+`emotion_xlm_*` columns. Sentiment itself tracks the aisle cleanly: valence
+runs +0.083 for TISZA (government) down to −0.095 for Mi Hazánk.
+
+**Big Five is deliberately absent.** No Hungarian model exists, and the cached
+`Minej/bert-base-personality` is English-only on `bert-base-uncased`. See
+`CHANGES_SUMMARY.md`.
+
 ## Development
 
 ```bash

@@ -302,3 +302,82 @@ here would put a model's guess between the transcript and the count for no gain.
 - **No sentiment or humour model.** The tables report what the note-taker wrote
   down. Deciding whether a laugh was with or at a speaker is left to the
   own-side/other-side columns and a reader.
+
+---
+
+# Task 5 — readability, affect and keywords
+
+Same branch. 1,693 cycle-43 speeches scored for readability, lexical diversity,
+keywords, sentiment and emotion. The analysis is
+`data/derived/metrics/REPORT.md`.
+
+**New:** `src/parlamonitor/readability.py` (saphes wrapper),
+`keywords.py` (TextRank on networkx; KeyBERT behind the `metrics` extra),
+`affect.py` (models, label calibration, valence), plus
+`scripts/speech_metrics.py`, `scripts/speech_affect.py`,
+`scripts/validate_affect.py` and three test modules.
+
+## What needs a human call (Task 5)
+
+1. **Big Five was requested and is not here.** There is no Hungarian Big Five
+   text model. The one in the local HF cache, `Minej/bert-base-personality`, is
+   `language: en` on `bert-base-uncased`; feeding it Hungarian produces numbers
+   that are not a measurement. A hub search returns two models with zero
+   downloads and no model card. Beyond the language problem, text-based Big
+   Five inference correlates r ≈ 0.2–0.4 with self-report even in English, is
+   trained on personal essays and social media, and parliamentary oratory is
+   performative and often not written by the speaker — so the construct would
+   not transfer even with perfect translation. Emitting `mp_big_five.csv` for
+   named politicians would have been inventing data. **Decided: skipped.** The
+   nearest defensible substitute is a stylistic profile from the columns that
+   now exist.
+
+2. **Two emotion channels are unusable and are flagged, not dropped.**
+   `emotion_hu_fear` and `emotion_hu_sadness` fail corpus validation. They stay
+   in the CSV because deleting a column hides the finding; `UNRELIABLE_CHANNELS`
+   and `affect_validation.json` name them. Whether to drop them from any
+   downstream analysis is a call for whoever uses the table.
+
+3. **KeyBERT candidates are lemma pairs, not phrases.** Running it on raw text
+   instead would give real quotable phrases at the cost of inflection
+   scattering. Worth revisiting if the keywords are for display.
+
+## Decisions that change the numbers (Task 5)
+
+| decision | default | why |
+| --- | --- | --- |
+| LIX long-word threshold | **8** | `saphes.recommended_threshold("hu")`; LIX's usual 6 is Swedish |
+| Word length | Hungarian letters | `cs gy ly ny sz ty zs dzs` are one letter each |
+| Sentence source | emtsv | a regex splitter breaks on `dr.` and `2026.`, and LIX is words-per-sentence |
+| Diversity | MATTR, 100-token window, content lemmas | TTR falls as text grows and would rank speakers by length |
+| Readability reliability | flagged above 60 words/sentence | catches the two roll-call records at LIX 594 |
+| Affect chunking | 400 subword tokens, mean over chunks | all three models cap at 512; 993 speeches needed more than one chunk |
+| Sentiment valence | expectation over the ordinal scale | argmax would snap a split distribution to one end |
+| Label mappings | derived at runtime by probing | no model declares its labels |
+
+## Where the models did not hold
+
+- **None of the three affect models declares its labels** — all ship
+  `LABEL_0`…`LABEL_n`. The mapping is derived by probing at run time and the
+  confusion matrix written to `affect_manifest.json`, so a model update changes
+  the calibration instead of silently mislabelling a column.
+- **Short probes are a weak reliability test, and were wrong in both
+  directions.** They flagged `emotion_hu_anger`, which behaves fine on real
+  speeches (r = −0.40 with valence, +0.42 with the other model's anger), and
+  passed `emotion_hu_fear`, which fires on two thirds of the corpus while
+  correlating with nothing. `validate_affect.py` now decides this on the scored
+  corpus, and it caught `emotion_hu_sadness` having the wrong sign, which I had
+  missed.
+- **Cross-model agreement is modest**: anger r = +0.42, joy +0.25, fear +0.15,
+  sadness +0.01. Two emotion models trained on different corpora barely agree
+  about sadness at all.
+
+## Left alone deliberately (Task 5)
+
+- **No sentiment lexicon fallback.** Only transformer scores, so there is one
+  provenance per number.
+- **`emotion_hu_*` columns are kept** despite two failing — the validation file
+  is the record, and silently dropping them would erase the finding.
+- **The `metrics` extra is optional.** keybert reaches sentence-transformers
+  and transformers reaches torch; the core install stays light, and TextRank
+  needs neither.

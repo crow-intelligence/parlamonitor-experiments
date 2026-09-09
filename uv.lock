@@ -1499,6 +1499,21 @@ wheels = [
 ]
 
 [[package]]
+name = "keybert"
+version = "0.9.0"
+source = { registry = "https://pypi.org/simple" }
+dependencies = [
+    { name = "numpy" },
+    { name = "rich" },
+    { name = "scikit-learn" },
+    { name = "sentence-transformers" },
+]
+sdist = { url = "https://files.pythonhosted.org/packages/b7/a8/a73003cc0f6a606eb30c9e19a85b5a89bef076e9adcb642aed29e47c693c/keybert-0.9.0.tar.gz", hash = "sha256:eec8ebd37d3d9fa238d7075e727adb993de4f3ed67c94112840e4cc0e55d7657", size = 32235, upload-time = "2025-02-07T08:45:13.187Z" }
+wheels = [
+    { url = "https://files.pythonhosted.org/packages/82/07/e2f42a8ec3ff1935debbf2a5255570d22033fca3fe3180d5af99a6c9ee8c/keybert-0.9.0-py3-none-any.whl", hash = "sha256:afa2f300a72f69d279e4482bc85d8b34493b119876dc0818cb4f260466285b36", size = 41364, upload-time = "2025-02-07T08:45:08.093Z" },
+]
+
+[[package]]
 name = "keyflux"
 version = "0.2.0"
 source = { registry = "https://pypi.org/simple" }
@@ -2402,6 +2417,12 @@ dev = [
 diachronic = [
     { name = "chronowords" },
 ]
+metrics = [
+    { name = "keybert" },
+    { name = "sentence-transformers" },
+    { name = "torch" },
+    { name = "transformers" },
+]
 topics = [
     { name = "bertopic" },
     { name = "gensim" },
@@ -2419,6 +2440,7 @@ requires-dist = [
     { name = "ipykernel", marker = "extra == 'dev'", specifier = ">=6.29" },
     { name = "jupyter", marker = "extra == 'dev'", specifier = ">=1.0" },
     { name = "kenon", specifier = ">=0.1.2" },
+    { name = "keybert", marker = "extra == 'metrics'", specifier = ">=0.9" },
     { name = "keyflux", specifier = ">=0.2" },
     { name = "lexograph", specifier = ">=0.1" },
     { name = "matplotlib", specifier = ">=3.8" },
@@ -2431,10 +2453,13 @@ requires-dist = [
     { name = "ruff", marker = "extra == 'dev'", specifier = ">=0.4" },
     { name = "saphes", specifier = ">=0.1" },
     { name = "scikit-learn", marker = "extra == 'topics'", specifier = ">=1.4" },
+    { name = "sentence-transformers", marker = "extra == 'metrics'", specifier = ">=3.0" },
     { name = "sentence-transformers", marker = "extra == 'topics'", specifier = ">=3.0" },
+    { name = "torch", marker = "extra == 'metrics'", specifier = ">=2.0" },
+    { name = "transformers", marker = "extra == 'metrics'", specifier = ">=4.40" },
     { name = "ty", marker = "extra == 'dev'" },
 ]
-provides-extras = ["diachronic", "topics", "dev"]
+provides-extras = ["diachronic", "topics", "metrics", "dev"]
 
 [[package]]
 name = "parso"
