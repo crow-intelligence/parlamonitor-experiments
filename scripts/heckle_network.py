@@ -30,6 +30,7 @@ import networkx as nx
 import pandas as pd
 
 from parlamonitor.interactions import (
+    Person,
     SpeakerRegistry,
     aggregate_by,
     annotate_crossing,
@@ -39,6 +40,7 @@ from parlamonitor.interactions import (
     to_node_link,
 )
 from parlamonitor.loading import DATA_RAW
+from parlamonitor.parentheticals import CYCLES, load_parentheticals
 from parlamonitor.reactions import GOVERNING_PARTIES, Kind, events_in
 
 ROOT = Path(__file__).resolve().parents[1]
@@ -52,6 +54,13 @@ def parse_args(argv: Sequence[str] | None = None) -> argparse.Namespace:
     parser.add_argument("--output-dir", type=Path, default=DEFAULT_OUTPUT_DIR)
     parser.add_argument("--data-dir", type=Path, default=None)
     parser.add_argument("--cycle", type=int, default=43)
+    parser.add_argument(
+        "--address-cycles",
+        type=int,
+        nargs="+",
+        default=list(CYCLES),
+        help="cycles to scan for directed-address edges (needs no speeches)",
+    )
     parser.add_argument(
         "--keep-self-loops",
         action="store_true",
@@ -71,7 +80,7 @@ def extract_edges(speeches: Sequence[dict], registry: SpeakerRegistry, cycle: in
     unresolved: set[str] = set()
     for record in speeches:
         floor = record.get("speaker") or {}
-        target = registry.resolve(floor.get("label") or "")
+        floor_person = registry.resolve(floor.get("label") or "")
         agenda = record.get("agenda") or {}
         for span in _SPAN.findall(record.get("text") or ""):
             for event in events_in(span):
@@ -80,9 +89,22 @@ def extract_edges(speeches: Sequence[dict], registry: SpeakerRegistry, cycle: in
                 source = registry.resolve(event.speaker)
                 if not source.resolved:
                     unresolved.add(event.speaker)
+                # "Magyar Péter Bóka Jánosnak:" aims the remark at a named
+                # third party, who is not the floor-holder. That is a different
+                # edge, and `edge_type` keeps the two separable.
+                if event.addressee:
+                    addressed = registry.resolve(event.addressee)
+                    if not addressed.resolved:
+                        unresolved.add(event.addressee)
+                    target = addressed
+                    edge_type = "address"
+                else:
+                    target = floor_person
+                    edge_type = "interruption"
                 rows.append(
                     {
                         "cycle": cycle,
+                        "edge_type": edge_type,
                         "speech_uid": record.get("uid"),
                         "date": record.get("date"),
                         "sitting": record.get("sitting"),
@@ -103,11 +125,63 @@ def extract_edges(speeches: Sequence[dict], registry: SpeakerRegistry, cycle: in
                         "target_side": target.side,
                         "target_is_mp": target.is_mp,
                         "target_resolved": target.resolved,
+                        "floor_holder": floor_person.label,
+                        "floor_holder_id": floor_person.node_id,
                         "self_loop": source.node_id == target.node_id,
                         "quote": event.quote,
                     }
                 )
     return rows, unresolved
+
+
+def extract_address_edges(
+    cycles: Sequence[int], registry: SpeakerRegistry, registry_cycle: int, data_dir
+):
+    """Edges from ``X Y-nak:`` -- a remark aimed at a named third party.
+
+    Unlike an interruption, both ends are named inside the parenthetical, so
+    this needs no speeches export and works for every cycle. Factions can only
+    be attached for the cycle whose registry was supplied; for the others both
+    ends keep a name and a null faction.
+    """
+    rows = []
+    for cycle in cycles:
+        lines, _ = load_parentheticals(cycle, data_dir)
+        for line_no, line in enumerate(lines):
+            for event in events_in(line):
+                if not event.addressee or not event.speaker:
+                    continue
+                known = cycle == registry_cycle
+                source = (
+                    registry.resolve(event.speaker)
+                    if known
+                    else Person(None, event.speaker, None, None, None, False)
+                )
+                target = (
+                    registry.resolve(event.addressee)
+                    if known
+                    else Person(None, event.addressee, None, None, None, False)
+                )
+                rows.append(
+                    {
+                        "cycle": cycle,
+                        "edge_type": "address",
+                        "line_no": line_no,
+                        "source": source.label,
+                        "source_id": source.node_id,
+                        "source_faction": source.faction,
+                        "source_side": source.side,
+                        "source_resolved": source.resolved,
+                        "target": target.label,
+                        "target_id": target.node_id,
+                        "target_faction": target.faction,
+                        "target_side": target.side,
+                        "target_resolved": target.resolved,
+                        "quote": event.quote,
+                        "text": event.text,
+                    }
+                )
+    return rows
 
 
 def node_table(graph: nx.DiGraph) -> pd.DataFrame:
@@ -170,6 +244,8 @@ def main(argv: Sequence[str] | None = None) -> int:
     print(
         f"  self-loops (heckling one's own speech): {int(edges['self_loop'].sum()):,}"
     )
+    by_type = edges["edge_type"].value_counts().to_dict()
+    print(f"  edge types: {by_type}")
 
     graph = annotate_crossing(
         annotate_degrees(build_graph(rows, drop_self_loops=not args.keep_self_loops))
@@ -194,7 +270,11 @@ def main(argv: Sequence[str] | None = None) -> int:
         "cycle": args.cycle,
         "source": str(path),
         "generated_at": datetime.now(UTC).isoformat(),
-        "edge_semantics": "source interjected during target's speech",
+        "edge_semantics": (
+            "interruption: source interjected during target's speech; "
+            "address: source aimed a named remark at target, who need not "
+            "have held the floor"
+        ),
     }
 
     edges.to_csv(out / "heckle_edges.csv", index=False, encoding="utf-8")
@@ -217,6 +297,35 @@ def main(argv: Sequence[str] | None = None) -> int:
     nx.write_graphml(graphml_safe(graph), out / "heckle_network.graphml")
     nx.write_graphml(graphml_safe(by_party), out / "heckle_network_party.graphml")
 
+    # Directed addresses: both ends named in the parenthetical, so every cycle
+    # is available, not only the one with a speeches export.
+    address_rows = extract_address_edges(
+        args.address_cycles, registry, args.cycle, args.data_dir
+    )
+    address_counts: dict[str, int] = {}
+    if address_rows:
+        address = pd.DataFrame(address_rows)
+        address_counts = {
+            str(c): int(n) for c, n in address["cycle"].value_counts().items()
+        }
+        address.to_csv(out / "address_edges.csv", index=False, encoding="utf-8")
+        address_graph = annotate_crossing(
+            annotate_degrees(build_graph(address_rows, drop_self_loops=True))
+        )
+        (out / "address_network.json").write_text(
+            json.dumps(
+                to_node_link(address_graph, **{**provenance, "cycle": "39-43"}),
+                ensure_ascii=False,
+                indent=2,
+            ),
+            encoding="utf-8",
+        )
+        nx.write_graphml(graphml_safe(address_graph), out / "address_network.graphml")
+        print(
+            f"  address edges: {len(address)} events across cycles "
+            f"{sorted(address_counts)}, {address_graph.number_of_nodes()} nodes"
+        )
+
     manifest = {
         **provenance,
         "python": sys.version.split()[0],
@@ -229,6 +338,7 @@ def main(argv: Sequence[str] | None = None) -> int:
             "named_interjections": len(edges),
             "interjector_resolved": resolved,
             "interjector_match_kind": {k: int(v) for k, v in by_match.items()},
+            "by_edge_type": {k: int(v) for k, v in by_type.items()},
             "interjector_unresolved_names": sorted(unresolved),
             "self_loops": int(edges["self_loop"].sum()),
             "nodes": graph.number_of_nodes(),
@@ -237,6 +347,7 @@ def main(argv: Sequence[str] | None = None) -> int:
             "party_edges": by_party.number_of_edges(),
             **crossing,
             "edges_by_crossing": dict(crossing_edges),
+            "address_events_by_cycle": address_counts,
         },
         "coverage": {
             "note": (

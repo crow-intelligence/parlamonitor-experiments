@@ -242,6 +242,105 @@ _NOT_A_PERSON = re.compile(
 _UNNAMED_QUOTE = re.compile(r"^(?P<prefix>[^:]{1,90}):\s+(?P<quote>.+)$")
 
 
+# Hungarian case endings that mark the person a remark is addressed *to*:
+# dative -nak/-nek, allative -hoz/-hez/-höz, ablative -tól/-től, delative
+# -ról/-ről, adessive -nál/-nél. The sublative -ra/-re is deliberately absent:
+# it is indistinguishable from the end of genuine given names such as Imre and
+# Sára, and would split them apart.
+_CASE_SUFFIX = re.compile(
+    r"(nak|nek|hoz|hez|höz|tól|től|ról|ről|nál|nél)$", re.IGNORECASE
+)
+
+
+def strip_case_suffix(word: str) -> str | None:
+    """Recover a name from an inflected form addressed to its bearer.
+
+    Hungarian marks the addressee with a case ending, and a stem-final vowel
+    lengthens before it: ``Olga`` becomes ``Olgához``, ``Bence`` becomes
+    ``Bencének``. Removing the ending and undoing the lengthening recovers the
+    nominative.
+
+    Args:
+        word: A possibly inflected name.
+
+    Returns:
+        The nominative form, or ``None`` if the word carries no such ending.
+        ``None`` means "this is not an addressee", which the caller needs to
+        distinguish from a name that happens to be unchanged.
+
+    Example:
+        >>> strip_case_suffix("Jánosnak")
+        'János'
+        >>> strip_case_suffix("Olgához")
+        'Olga'
+        >>> strip_case_suffix("Bencének")
+        'Bence'
+        >>> strip_case_suffix("Krisztiánhoz")
+        'Krisztián'
+
+        A name in the nominative is not an addressee:
+
+        >>> strip_case_suffix("János") is None
+        True
+
+        Nor is a given name that merely ends in a similar string:
+
+        >>> strip_case_suffix("Imre") is None
+        True
+    """
+    match = _CASE_SUFFIX.search(word)
+    if match is None:
+        return None
+    stem = word[: match.start()]
+    # The linking vowel lengthened before the suffix; shorten it back.
+    if stem.endswith(("á", "é")):
+        stem = stem[:-1] + {"á": "a", "é": "e"}[stem[-1]]
+    return stem or None
+
+
+def split_addressee(name: str) -> tuple[str, str | None]:
+    """Split ``X Y-nak`` into the speaker and the person addressed.
+
+    The minutes record a remark aimed at a named third party by writing both
+    names before the colon: ``Magyar Péter Bóka Jánosnak: ...`` is Magyar Péter
+    addressing Bóka János, who is *not* the person holding the floor.
+
+    Assumes the Hungarian convention of a two-token name, surname first, for
+    the addressee. Requires at least four tokens, so an ordinary two-token
+    speaker is never mistaken for a pair.
+
+    Args:
+        name: The capitalised run captured before the colon.
+
+    Returns:
+        A ``(speaker, addressee)`` pair. ``addressee`` is ``None`` when the run
+        is just one person, which is the overwhelming majority.
+
+    Example:
+        >>> split_addressee("Magyar Péter Bóka Jánosnak")
+        ('Magyar Péter', 'Bóka János')
+        >>> split_addressee("Soltész Miklós Kálmán Olgához")
+        ('Soltész Miklós', 'Kálmán Olga')
+
+        An ordinary interjector is returned unchanged:
+
+        >>> split_addressee("Vadai Ágnes")
+        ('Vadai Ágnes', None)
+
+        And a four-token name with no case ending is left alone:
+
+        >>> split_addressee("Bangóné Borbély Ildikó Mária")
+        ('Bangóné Borbély Ildikó Mária', None)
+    """
+    tokens = name.split()
+    if len(tokens) < 4:
+        return name, None
+    recovered = strip_case_suffix(tokens[-1])
+    if recovered is None:
+        return name, None
+    return " ".join(tokens[:-2]), f"{tokens[-2]} {recovered}"
+
+
 @dataclass(frozen=True, slots=True)
 class Event:
     """One classified segment of a parenthetical.
@@ -258,6 +357,8 @@ class Event:
         speaker: For :attr:`Kind.INTERJECTION`, who was quoted; otherwise
             ``None``. Not the person who caused the reaction -- the person who
             made the noise.
+        addressee: The named third party a remark was aimed at, when the
+            minutes record one. ``None`` otherwise, which is the usual case.
         quote: For :attr:`Kind.INTERJECTION`, what they said.
     """
 
@@ -268,6 +369,7 @@ class Event:
     audiences: frozenset[Audience] = field(default_factory=frozenset)
     parties: frozenset[str] = field(default_factory=frozenset)
     speaker: str | None = None
+    addressee: str | None = None
     quote: str | None = None
 
     @property
@@ -392,6 +494,12 @@ def classify(segment: str) -> Event:
         >>> event.kind, event.speaker, event.quote
         (<Kind.INTERJECTION: 'interjection'>, 'Vadai Ágnes', 'Nem hallom!')
 
+        A remark aimed at a named third party records both ends:
+
+        >>> event = classify("Magyar Péter Bóka Jánosnak: Ez nem igaz!")
+        >>> event.speaker, event.addressee
+        ('Magyar Péter', 'Bóka János')
+
         An unnamed one keeps the quote but invents no speaker:
 
         >>> event = classify("Közbeszólás az MSZP soraiból: Hazudik!")
@@ -416,13 +524,15 @@ def classify(segment: str) -> Event:
     if match is not None:
         candidate = match.group(1).strip()
         if not _NOT_A_PERSON.search(candidate):
+            speaker, addressee = split_addressee(candidate)
             return Event(
                 text=segment,
                 kind=Kind.INTERJECTION,
                 kinds=frozenset({Kind.INTERJECTION}),
                 audiences=audiences,
                 parties=parties,
-                speaker=candidate,
+                speaker=speaker,
+                addressee=addressee,
                 quote=match.group(2).strip(),
             )
         # Not a person: keep what was shouted, drop the false speaker, and let

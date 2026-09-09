@@ -257,3 +257,70 @@ def test_an_unnamed_heckle_is_credited_to_the_bench_that_made_it():
 def test_full_names_are_still_recognised(segment):
     assert classify(segment).speaker is not None
     assert len(classify(segment).speaker.split()) >= 2
+
+
+# --- directed address to a named third party --------------------------------
+
+
+@pytest.mark.parametrize(
+    ("inflected", "nominative"),
+    [
+        ("Jánosnak", "János"),
+        ("Zoltánnak", "Zoltán"),
+        ("Olgához", "Olga"),
+        ("Bencének", "Bence"),
+        ("Timeának", "Timea"),
+        ("Krisztiánhoz", "Krisztián"),
+        ("Sándorhoz", "Sándor"),
+        ("Vilmoshoz", "Vilmos"),
+    ],
+)
+def test_a_case_ending_is_stripped_and_the_vowel_shortened(inflected, nominative):
+    from parlamonitor.reactions import strip_case_suffix
+
+    assert strip_case_suffix(inflected) == nominative
+
+
+@pytest.mark.parametrize("word", ["János", "Imre", "Sára", "Olga", "Bence"])
+def test_a_nominative_name_is_not_an_addressee(word):
+    # -ra/-re is excluded from the suffix set precisely so Imre and Sára
+    # survive intact.
+    from parlamonitor.reactions import strip_case_suffix
+
+    assert strip_case_suffix(word) is None
+
+
+@pytest.mark.parametrize(
+    ("run", "speaker", "addressee"),
+    [
+        ("Magyar Péter Bóka Jánosnak", "Magyar Péter", "Bóka János"),
+        ("Soltész Miklós Kálmán Olgához", "Soltész Miklós", "Kálmán Olga"),
+        ("Latorcai Csaba Kulcsár Krisztiánhoz", "Latorcai Csaba", "Kulcsár Krisztián"),
+    ],
+)
+def test_a_two_name_run_splits_into_speaker_and_addressee(run, speaker, addressee):
+    from parlamonitor.reactions import split_addressee
+
+    assert split_addressee(run) == (speaker, addressee)
+
+
+@pytest.mark.parametrize(
+    "run", ["Vadai Ágnes", "Bangóné Borbély Ildikó", "Bangóné Borbély Ildikó Mária"]
+)
+def test_an_ordinary_name_is_never_split(run):
+    from parlamonitor.reactions import split_addressee
+
+    assert split_addressee(run) == (run, None)
+
+
+def test_the_addressee_reaches_the_event():
+    event = classify("Magyar Péter Bóka Jánosnak: Ez nem igaz!")
+    assert (event.speaker, event.addressee, event.quote) == (
+        "Magyar Péter",
+        "Bóka János",
+        "Ez nem igaz!",
+    )
+
+
+def test_an_ordinary_interjection_has_no_addressee():
+    assert classify("Vadai Ágnes: Nem igaz!").addressee is None
