@@ -389,3 +389,103 @@ def to_node_link(graph: nx.DiGraph, **extra: object) -> dict[str, Any]:
     data = nx.node_link_data(graph, edges="links")
     data.update(extra)
     return data
+
+
+GRAPHML_UNKNOWN = "unknown"
+"""Stand-in for a null in GraphML, which has no null."""
+
+
+def graphml_safe(graph: nx.DiGraph) -> nx.DiGraph:
+    """Return a copy whose attributes GraphML and Gephi can both represent.
+
+    GraphML declares one type per attribute name, and networkx infers that type
+    from the values it sees. Two things follow, and both bit this graph:
+
+    * **A null turned into a string splits the key.** Replacing ``None`` with
+      ``"unknown"`` on a boolean attribute left ``is_mp`` declared twice, once
+      ``boolean`` and once ``string``. Gephi reads one and drops the other.
+    * **Python's booleans are not GraphML's.** networkx writes ``True``, while
+      the schema wants ``true``; Gephi will not parse the former as a boolean.
+
+    So every attribute is coerced to a single, stable type here: booleans and
+    nulls become the strings ``"true"``, ``"false"`` and ``"unknown"``, which
+    Gephi imports as a filterable partition. Numbers stay numbers, because
+    Gephi's ranking and sizing need them.
+
+    Args:
+        graph: The person-level or aggregated graph.
+
+    Returns:
+        A copy, safe to hand to :func:`networkx.write_graphml`. The original is
+        untouched, so the JSON export keeps its real nulls and booleans.
+
+    Example:
+        >>> graph = nx.DiGraph()
+        >>> graph.add_node("a", faction=None, is_mp=True, heckles_given=3)
+        >>> graph.add_node("b", faction="X", is_mp=None, heckles_given=0)
+        >>> graph.add_edge("a", "b", weight=2)
+        >>> safe = graphml_safe(graph)
+        >>> safe.nodes["a"]["faction"], safe.nodes["a"]["is_mp"]
+        ('unknown', 'true')
+        >>> safe.nodes["b"]["is_mp"]
+        'unknown'
+
+        Numbers are left alone so Gephi can rank on them:
+
+        >>> safe.nodes["a"]["heckles_given"]
+        3
+
+        And the original is not modified:
+
+        >>> graph.nodes["a"]["faction"] is None
+        True
+    """
+
+    def coerce(value: object) -> object:
+        if value is None:
+            return GRAPHML_UNKNOWN
+        if isinstance(value, bool):
+            return "true" if value else "false"
+        return value
+
+    safe = graph.copy()
+    for _, data in safe.nodes(data=True):
+        for key, value in list(data.items()):
+            data[key] = coerce(value)
+    for _, _, data in safe.edges(data=True):
+        for key, value in list(data.items()):
+            data[key] = coerce(value)
+    return safe
+
+
+def annotate_crossing(graph: nx.DiGraph) -> nx.DiGraph:
+    """Mark each edge as crossing the aisle or not, in place.
+
+    Adds ``crossing`` -- ``"cross-bench"``, ``"same-side"`` or ``"unknown"`` --
+    plus ``source_side`` and ``target_side``. Gephi cannot derive an edge
+    attribute from its endpoints' attributes, so colouring edges by whether
+    they cross the floor needs this precomputed.
+
+    Example:
+        >>> graph = nx.DiGraph()
+        >>> graph.add_node("a", side="opposition")
+        >>> graph.add_node("b", side="government")
+        >>> graph.add_node("c", side=None)
+        >>> graph.add_edge("a", "b", weight=1)
+        >>> graph.add_edge("a", "c", weight=1)
+        >>> _ = annotate_crossing(graph)
+        >>> graph["a"]["b"]["crossing"]
+        'cross-bench'
+        >>> graph["a"]["c"]["crossing"]
+        'unknown'
+    """
+    for source, target, data in graph.edges(data=True):
+        a = graph.nodes[source].get("side")
+        b = graph.nodes[target].get("side")
+        data["source_side"] = a
+        data["target_side"] = b
+        if a is None or b is None:
+            data["crossing"] = "unknown"
+        else:
+            data["crossing"] = "same-side" if a == b else "cross-bench"
+    return graph

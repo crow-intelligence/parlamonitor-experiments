@@ -21,6 +21,7 @@ import json
 import platform
 import re
 import sys
+from collections import Counter
 from collections.abc import Sequence
 from datetime import UTC, datetime
 from pathlib import Path
@@ -31,8 +32,10 @@ import pandas as pd
 from parlamonitor.interactions import (
     SpeakerRegistry,
     aggregate_by,
+    annotate_crossing,
     annotate_degrees,
     build_graph,
+    graphml_safe,
     to_node_link,
 )
 from parlamonitor.loading import DATA_RAW
@@ -168,8 +171,8 @@ def main(argv: Sequence[str] | None = None) -> int:
         f"  self-loops (heckling one's own speech): {int(edges['self_loop'].sum()):,}"
     )
 
-    graph = annotate_degrees(
-        build_graph(rows, drop_self_loops=not args.keep_self_loops)
+    graph = annotate_crossing(
+        annotate_degrees(build_graph(rows, drop_self_loops=not args.keep_self_loops))
     )
     print(
         f"  graph: {graph.number_of_nodes():,} nodes, {graph.number_of_edges():,} edges"
@@ -183,6 +186,9 @@ def main(argv: Sequence[str] | None = None) -> int:
         f"{crossing['interjections_with_both_sides_known']:,} interjections "
         f"where both sides are known"
     )
+
+    crossing_edges = Counter(data["crossing"] for *_, data in graph.edges(data=True))
+    print(f"  edge crossing: {dict(crossing_edges)}")
 
     provenance = {
         "cycle": args.cycle,
@@ -205,14 +211,11 @@ def main(argv: Sequence[str] | None = None) -> int:
         json.dumps(to_node_link(by_side, **provenance), ensure_ascii=False, indent=2),
         encoding="utf-8",
     )
-    # GraphML cannot hold a null, so unknown factions are written as the string
-    # "unknown" here and only here; the CSVs keep them empty.
-    exportable = graph.copy()
-    for _, data in exportable.nodes(data=True):
-        for key, value in list(data.items()):
-            if value is None:
-                data[key] = "unknown"
-    nx.write_graphml(exportable, out / "heckle_network.graphml")
+    # GraphML has no null and declares one type per attribute name, so the
+    # graph goes through `graphml_safe` first. The JSON exports above keep
+    # their real nulls and booleans.
+    nx.write_graphml(graphml_safe(graph), out / "heckle_network.graphml")
+    nx.write_graphml(graphml_safe(by_party), out / "heckle_network_party.graphml")
 
     manifest = {
         **provenance,
@@ -233,6 +236,7 @@ def main(argv: Sequence[str] | None = None) -> int:
             "party_nodes": by_party.number_of_nodes(),
             "party_edges": by_party.number_of_edges(),
             **crossing,
+            "edges_by_crossing": dict(crossing_edges),
         },
         "coverage": {
             "note": (

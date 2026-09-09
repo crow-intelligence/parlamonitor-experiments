@@ -266,3 +266,99 @@ def test_round_trip_through_node_link_preserves_the_graph():
     restored = nx.node_link_graph(to_node_link(graph), edges="links")
     assert restored.number_of_nodes() == graph.number_of_nodes()
     assert restored["a"]["b"]["weight"] == 3
+
+
+# --- GraphML export ---------------------------------------------------------
+
+
+def test_a_null_on_a_boolean_attribute_does_not_split_the_key(tmp_path):
+    # The bug this guards: replacing None with "unknown" on a boolean attribute
+    # left GraphML declaring `is_mp` twice, once boolean and once string, and
+    # Gephi silently reads one and drops the other.
+    import xml.etree.ElementTree as ET
+
+    from parlamonitor.interactions import graphml_safe
+
+    graph = nx.DiGraph()
+    graph.add_node("a", is_mp=True, faction="X")
+    graph.add_node("b", is_mp=None, faction=None)
+    graph.add_edge("a", "b", weight=1)
+
+    path = tmp_path / "g.graphml"
+    nx.write_graphml(graphml_safe(graph), path)
+
+    names = [
+        key.get("attr.name")
+        for key in ET.parse(path).getroot()
+        if key.tag.endswith("key")
+    ]
+    assert len(names) == len(set(names)), f"duplicate attribute keys: {names}"
+
+
+def test_booleans_are_written_in_the_form_graphml_defines():
+    from parlamonitor.interactions import graphml_safe
+
+    graph = nx.DiGraph()
+    graph.add_node("a", flag=True)
+    graph.add_node("b", flag=False)
+    safe = graphml_safe(graph)
+    # networkx writes Python's `True`, which is not GraphML's `true`.
+    assert safe.nodes["a"]["flag"] == "true"
+    assert safe.nodes["b"]["flag"] == "false"
+
+
+def test_numbers_survive_so_gephi_can_rank_on_them():
+    from parlamonitor.interactions import graphml_safe
+
+    graph = nx.DiGraph()
+    graph.add_node("a", heckles_given=7)
+    assert graphml_safe(graph).nodes["a"]["heckles_given"] == 7
+
+
+def test_graphml_safe_does_not_mutate_the_original():
+    from parlamonitor.interactions import graphml_safe
+
+    graph = nx.DiGraph()
+    graph.add_node("a", faction=None, is_mp=True)
+    graphml_safe(graph)
+    assert graph.nodes["a"]["faction"] is None
+    assert graph.nodes["a"]["is_mp"] is True
+
+
+def test_the_graph_round_trips_through_graphml(tmp_path):
+    from parlamonitor.interactions import graphml_safe
+
+    graph = build_graph([edge_row("a", "b")] * 3 + [edge_row("c", "b")])
+    path = tmp_path / "g.graphml"
+    nx.write_graphml(graphml_safe(graph), path)
+    restored = nx.read_graphml(path)
+    assert restored.is_directed()
+    assert restored.number_of_nodes() == graph.number_of_nodes()
+    assert restored["a"]["b"]["weight"] == 3
+
+
+# --- edge crossing ----------------------------------------------------------
+
+
+def test_edges_are_labelled_by_whether_they_cross_the_aisle():
+    from parlamonitor.interactions import annotate_crossing
+
+    graph = build_graph([edge_row("a", "b")])  # opposition -> government
+    annotate_crossing(graph)
+    assert graph["a"]["b"]["crossing"] == "cross-bench"
+
+
+def test_same_side_edges_are_labelled_as_such():
+    from parlamonitor.interactions import annotate_crossing
+
+    graph = build_graph([edge_row("a", "b", target_side="opposition")])
+    annotate_crossing(graph)
+    assert graph["a"]["b"]["crossing"] == "same-side"
+
+
+def test_an_unknown_side_is_not_guessed_either_way():
+    from parlamonitor.interactions import annotate_crossing
+
+    graph = build_graph([edge_row("a", "b", target_side=None)])
+    annotate_crossing(graph)
+    assert graph["a"]["b"]["crossing"] == "unknown"
