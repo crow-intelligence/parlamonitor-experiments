@@ -411,6 +411,14 @@ def main(argv: Sequence[str] | None = None) -> int:
         totals = speech_totals(speeches_path)
         mp_frame = mp_scores(reactions, totals, args.speeches_cycle, args.min_speeches)
         mp_frame.to_csv(out / "mp_reaction_scores.csv", index=False, encoding="utf-8")
+        # Per speech as well as per MP: this is what lets a reaction be joined
+        # to the topic of the speech that drew it, on `uid`.
+        per_speech = reactions.copy()
+        per_speech["kinds"] = per_speech["kinds"].map(
+            lambda ks: ";".join(sorted(k.value for k in ks))
+        )
+        per_speech.to_csv(out / "speech_reactions.csv", index=False, encoding="utf-8")
+        print(f"  wrote {len(per_speech):,} speech-level reaction rows")
         print(
             f"  {len(reactions):,} attributed reactions over {len(totals):,} speakers"
         )

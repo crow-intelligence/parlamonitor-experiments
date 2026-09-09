@@ -362,6 +362,28 @@ runs +0.083 for TISZA (government) down to −0.095 for Mi Hazánk.
 `Minej/bert-base-personality` is English-only on `bert-base-uncased`. See
 `CHANGES_SUMMARY.md`.
 
+## The dashboard
+
+```bash
+uv run python scripts/build_dashboard_data.py
+python3 -m http.server 8765 --directory dashboard
+```
+
+Static page, four views: an MP/party profile, a topic x metric heatmap, the
+interruption network, and a filterable table of all 1,693 speeches.
+`dashboard/README.md` covers the form and colour decisions; the short version:
+
+**No radar chart.** Radar encodes magnitude as radius, so area grows as the
+square and a 2x score reads as 4x, and its axis order is arbitrary. The profile
+view uses percentile strips instead - every eligible MP as a faint dot, the
+selected one filled, the party median as a tick - because "is this MP unusual"
+is a comparison against a population, so the population is drawn.
+
+The categorical palette is validated for both light and dark
+(`validate_palette.js`, all checks pass). It is deliberately **not** party brand
+colours: those hex values are not reliably known here, and a wrong one in a
+political dashboard is a factual error rather than a styling choice.
+
 ## Development
 
 ```bash

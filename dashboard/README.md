@@ -1,0 +1,67 @@
+# Parlamonitor dashboard
+
+A static page. No server, no build step: `index.html`, `app.js`, and one JSON
+bundle it fetches.
+
+```bash
+uv run python scripts/build_dashboard_data.py   # writes data/dashboard.json
+python3 -m http.server 8765 --directory dashboard
+# then open http://127.0.0.1:8765/
+```
+
+It must be served over HTTP rather than opened as `file://`, because it fetches
+the bundle.
+
+`data/dashboard.json` (~2.2 MB) is derived and therefore gitignored, like
+everything else under `data/derived/`. Rebuild it with the command above; it
+takes a second and needs no models.
+
+## Why these forms
+
+**Not a radar chart.** A radar encodes magnitude as radius, so area grows as the
+square and a 2x score reads as 4x; its axis order is arbitrary and rotating it
+changes the silhouette a reader interprets; and the metrics here are
+incommensurable (LIX ~20-85, MATTR 0-1, valence -1...+1, laughs 0-176), so a
+radar could only show them normalised, which hides the values.
+
+The profile view uses **percentile strips** instead: every eligible MP as a
+faint dot, the selected one filled, the party median as a tick. The question is
+"is this MP unusual, and which way", and that is a comparison against a
+population -- so the population is drawn.
+
+Elsewhere: a **diverging stacked bar** centred on neutral for the ordered
+sentiment scale; a **heatmap on per-column z-scores** for topic x metric, so one
+diverging ramp serves every column and 0 always means the cycle average; a
+**force layout** for the interruption network.
+
+## Colour
+
+Four categorical slots, validated with the dataviz skill's checker:
+
+```
+validate_palette.js "#2a78d6,#eb6834,#1baf7a,#eda100" --mode light   # all pass
+validate_palette.js "#3987e5,#d95926,#199e70,#c98500" --mode dark    # all pass
+```
+
+Light mode returns a contrast warning, which is why every strip carries a
+direct value label and the speeches tab exists as a full table view.
+
+**These are not party brand colours.** The brand hex values for TISZA, KDNP and
+Mi Hazank are not reliably known here, and a wrong party colour in a political
+dashboard is a factual error, not a styling choice. The slots are assigned in
+fixed order so a filter never repaints the survivors. Swap them for real brand
+values and re-run the validator if you have them.
+
+Dark mode is a selected set of steps against the dark surface, not an automatic
+flip, and it is validated separately.
+
+## Gotchas found while building this
+
+- **`d3.scaleLinear` cannot interpolate CSS `var()` strings** -- a scale given one
+  silently produces black, which is what the whole heatmap did until it was
+  rendered and looked at. It now resolves variables to computed values first
+  (`cssVar()`), which is also why it re-renders on a theme change.
+- **Hardcoding `data-theme="light"` on `<html>` defeats `prefers-color-scheme`
+  entirely.** The attribute is set only by the toggle.
+- **Force-layout labels collide** in the centre of a hairball. Only the six
+  heaviest nodes are labelled, with a surface-coloured halo under the text.

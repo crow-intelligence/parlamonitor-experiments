@@ -17,6 +17,10 @@ data/raw/parantheticals/
 data/derived/
 exports/
 
+# The dashboard's data bundle is derived from data/derived and rebuilt in a
+# second by scripts/build_dashboard_data.py. The page that reads it is in git.
+dashboard/data/
+
 # Python-generated files
 __pycache__/
 *.py[oc]
