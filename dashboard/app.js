@@ -365,21 +365,71 @@ function renderTopics() {
 }
 
 /* -------------------------------------------------------------- network */
+/* Two sizings of the same graph: in-degree (how much a member was interrupted)
+ * and out-degree (how much they interrupted others). They share one radius
+ * scale so switching shows a real difference rather than a rescaled picture,
+ * and the layout is not re-run -- nodes resize in place, which is what makes
+ * "gives more than he gets" visible at a glance.
+ * Edge thickness is the edge weight: how many times that pair happened. */
+const SIZE_MODES = {
+  in:  { key: "heckles_received", partners: "hecklers",
+         label: "Kapott közbeszólás (in-degree)" },
+  out: { key: "heckles_given", partners: "targets",
+         label: "Adott közbeszólás (out-degree)" }
+};
+
 function renderNetwork() {
   const W = Math.min(1100, document.querySelector(".wrap").clientWidth - 44), H = 620;
   const filterSel = document.getElementById("net-filter");
   const minSel = document.getElementById("net-min");
+  const sizeSel = document.getElementById("net-size");
+
+  // One scale for both modes, over the larger of the two maxima.
+  const maxDegree = d3.max(DATA.network.nodes,
+    n => Math.max(n.heckles_received, n.heckles_given)) || 1;
+  const r = d3.scaleSqrt().domain([0, maxDegree]).range([3.5, 26]);
+  const maxWeight = d3.max(DATA.network.links, l => l.weight) || 1;
+  const width = d3.scaleSqrt().domain([1, maxWeight]).range([1, 7]);
+
+  // Deep-linkable: index.html?size=out#network opens the out-degree view.
+  const wanted = new URLSearchParams(location.search).get("size");
+  if (wanted && SIZE_MODES[wanted]) sizeSel.value = wanted;
+
+  let sim = null, node = null, label = null, nodes = [];
+
+  function applySize() {
+    const mode = SIZE_MODES[sizeSel.value];
+    node.transition().duration(400).attr("r", d => r(d[mode.key]));
+
+    // Label the six heaviest on the *active* metric, not a fixed set.
+    const top = new Set(nodes.slice()
+      .sort((a, b) => d3.descending(a[mode.key], b[mode.key]))
+      .slice(0, 6).map(n => n.id));
+    label.attr("display", d => top.has(d.id) ? null : "none");
+
+    // Radii changed, so let collide relax the overlaps without re-laying out.
+    if (sim) {
+      sim.force("collide", d3.forceCollide(d => r(d[mode.key]) + 9));
+      sim.alpha(0.25).restart();
+      setTimeout(() => sim.stop(), 2500);
+    }
+    document.getElementById("net-caption").textContent =
+      sizeSel.value === "in"
+        ? "A pont mérete: hányszor szakították félbe. A legnagyobb pontok a leggyakrabban félbeszakított képviselők."
+        : "A pont mérete: hányszor szakított félbe másokat. Ugyanaz a skála, mint a másik nézetben, így a két kép közvetlenül összevethető.";
+  }
 
   function draw() {
-    const mode = filterSel.value, minW = +minSel.value;
+    const mode = SIZE_MODES[sizeSel.value];
+    const filterMode = filterSel.value, minW = +minSel.value;
     const links = DATA.network.links
       .filter(l => l.weight >= minW)
-      .filter(l => mode === "all" || l.crossing === mode)
+      .filter(l => filterMode === "all" || l.crossing === filterMode)
       .map(l => ({ ...l }));
     const keep = new Set(links.flatMap(l => [
       typeof l.source === "object" ? l.source.id : l.source,
       typeof l.target === "object" ? l.target.id : l.target]));
-    const nodes = DATA.network.nodes.filter(n => keep.has(n.id)).map(n => ({ ...n }));
+    nodes = DATA.network.nodes.filter(n => keep.has(n.id)).map(n => ({ ...n }));
 
     const svg = d3.select("#graph").html("").append("svg")
       .attr("width", W).attr("height", H).attr("viewBox", [0, 0, W, H])
@@ -391,18 +441,22 @@ function renderNetwork() {
       .attr("markerHeight", 5).attr("orient", "auto")
       .append("path").attr("d", "M0,-4L9,0L0,4").attr("fill", "var(--grid)");
 
-    const r = d3.scaleSqrt()
-      .domain([0, d3.max(nodes, n => n.heckles_received) || 1]).range([4, 24]);
-
     const link = svg.append("g").selectAll("line").data(links).join("line")
       .attr("stroke", d => d.crossing === "cross-bench"
         ? "var(--series-2)" : "var(--neutral)")
-      .attr("stroke-opacity", .4)
-      .attr("stroke-width", d => Math.min(6, 1 + Math.sqrt(d.weight)))
-      .attr("marker-end", "url(#arrow)");
+      .attr("stroke-opacity", .42)
+      .attr("stroke-width", d => width(d.weight))
+      .attr("marker-end", "url(#arrow)")
+      .on("mousemove", (e, d) => showTip(
+        `<strong>${d.source.label ?? d.source}</strong> → ` +
+        `<strong>${d.target.label ?? d.target}</strong><br>` +
+        `${d.weight} félbeszakítás<br>` +
+        `<span style="color:var(--text-muted)">${d.crossing === "cross-bench"
+          ? "a két oldal között" : "azonos oldalon belül"}</span>`, e))
+      .on("mouseleave", hideTip);
 
-    const node = svg.append("g").selectAll("circle").data(nodes).join("circle")
-      .attr("r", d => r(d.heckles_received))
+    node = svg.append("g").selectAll("circle").data(nodes).join("circle")
+      .attr("r", d => r(d[mode.key]))
       .attr("fill", d => factionColour(d.faction === "unknown" ? null : d.faction))
       .attr("stroke", "var(--surface-1)").attr("stroke-width", 2)
       .style("cursor", "pointer")
@@ -420,45 +474,49 @@ function renderNetwork() {
         }
       });
 
-    // Direct labels for the heaviest nodes only: a name on every node is chaos.
-    // A surface-coloured halo under the text keeps them readable where the
-    // centre of the hairball forces two labels to overlap anyway.
-    const top = new Set(nodes.slice()
-      .sort((a, b) => d3.descending(a.heckles_received, b.heckles_received))
-      .slice(0, 6).map(n => n.id));
-    const label = svg.append("g").selectAll("text")
-      .data(nodes.filter(n => top.has(n.id))).join("text")
+    // A surface-coloured halo keeps a label readable where the hairball forces
+    // two of them to overlap anyway.
+    label = svg.append("g").selectAll("text").data(nodes).join("text")
       .attr("fill", "var(--text-primary)").style("font-size", "11.5px")
-      .style("font-weight", "600")
-      .style("paint-order", "stroke")
+      .style("font-weight", "600").style("paint-order", "stroke")
       .style("stroke", "var(--surface-1)").style("stroke-width", "3.5px")
       .style("stroke-linejoin", "round")
       .style("pointer-events", "none").text(d => d.label);
 
-    const sim = d3.forceSimulation(nodes)
+    sim = d3.forceSimulation(nodes)
       .force("link", d3.forceLink(links).id(d => d.id).distance(95).strength(.22))
       .force("charge", d3.forceManyBody().strength(-330))
       .force("center", d3.forceCenter(W / 2, H / 2))
-      .force("collide", d3.forceCollide(d => r(d.heckles_received) + 9))
+      .force("collide", d3.forceCollide(d => r(d[mode.key]) + 9))
       .on("tick", () => {
         link.attr("x1", d => d.source.x).attr("y1", d => d.source.y)
             .attr("x2", d => d.target.x).attr("y2", d => d.target.y);
-        node.attr("cx", d => d.x = Math.max(26, Math.min(W - 26, d.x)))
-            .attr("cy", d => d.y = Math.max(26, Math.min(H - 26, d.y)));
-        label
-          .attr("x", d => d.x + r(d.heckles_received) + 5)
-          .attr("y", (d, i) => d.y + 4 + (i % 2 ? 11 : -7));
+        node.attr("cx", d => d.x = Math.max(28, Math.min(W - 28, d.x)))
+            .attr("cy", d => d.y = Math.max(28, Math.min(H - 28, d.y)));
+        label.attr("x", d => d.x + r(d[SIZE_MODES[sizeSel.value].key]) + 5)
+             .attr("y", (d, i) => d.y + 4 + (i % 2 ? 11 : -7));
       });
     setTimeout(() => sim.stop(), 6000);
+
+    applySize();
 
     document.getElementById("net-legend").innerHTML =
       DATA.parties.map(p =>
         `<span><i class="swatch" style="background:${factionColour(p.faction)}"></i>${p.faction}</span>`).join("") +
-      `<span><i class="swatch" style="background:var(--series-2);opacity:.5"></i>a két oldal között</span>` +
-      `<span><i class="swatch" style="background:var(--neutral);opacity:.5"></i>azonos oldalon belül</span>` +
+      `<span><i class="swatch" style="background:var(--series-2);opacity:.55"></i>a két oldal között</span>` +
+      `<span><i class="swatch" style="background:var(--neutral);opacity:.55"></i>azonos oldalon belül</span>` +
+      `<span style="color:var(--text-muted)">a vonal vastagsága: hány félbeszakítás (1–${maxWeight})</span>` +
       `<span style="color:var(--text-muted)">${nodes.length} képviselő · ${links.length} él</span>`;
   }
-  filterSel.onchange = draw; minSel.onchange = draw;
+
+  filterSel.onchange = draw;
+  minSel.onchange = draw;
+  sizeSel.onchange = () => {
+    const url = new URL(location.href);
+    url.searchParams.set("size", sizeSel.value);
+    history.replaceState(null, "", url);
+    applySize();                  // resize in place; keep the layout
+  };
   draw();
 }
 

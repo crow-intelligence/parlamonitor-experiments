@@ -34,6 +34,26 @@ sentiment scale; a **heatmap on per-column z-scores** for topic x metric, so one
 diverging ramp serves every column and 0 always means the cycle average; a
 **force layout** for the interruption network.
 
+### The two network sizings
+
+The network offers node size by **in-degree** (how often a member was
+interrupted) or **out-degree** (how often they interrupted others). Two
+decisions make the pair comparable rather than two unrelated pictures:
+
+- **One shared radius scale**, over the larger of the two maxima (289 received,
+  247 given). Independent scales would make everyone look equally central in
+  both views and hide the asymmetry, which is the whole point.
+- **The layout is not re-run when you switch.** Nodes resize in place, so what
+  you see is the change itself. Only the collide force is updated and the
+  simulation gently reheated to relax overlaps.
+
+The labelled six follow the active metric, so the names change with the view.
+Edge thickness is the edge weight -- how many times that ordered pair happened
+-- on a sqrt scale over 1-64, because the median edge is 1 and a linear scale
+would render almost everything hairline.
+
+The two views are deep-linkable: `?size=in` and `?size=out`.
+
 ## Colour
 
 Four categorical slots, validated with the dataviz skill's checker:

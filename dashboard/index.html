@@ -238,13 +238,22 @@ footer.about a { color: var(--crow); }
   <section id="network" data-panel="network" class="hidden">
     <h2>Ki kit szakított félbe?</h2>
     <p class="lede">
-      Minden nyíl egy bekiabálótól ahhoz vezet, aki éppen beszélt. A pont mérete
-      a kapott bekiabálások száma, a színe a frakció; a vastagabb él több
-      félbeszakítást jelent. A 294 élből 226 átível a két oldal között — a
-      félbeszakítás túlnyomórészt kormány–ellenzék műfaj. Kattintásra a képviselő
-      profilja nyílik meg.
+      Minden nyíl egy bekiabálótól ahhoz vezet, aki éppen beszélt, és a vonal
+      vastagsága azt mutatja, hányszor fordult elő az adott pár. A pontméret
+      kapcsolóval két nézet között válthat: mennyi félbeszakítást
+      <em>kapott</em> valaki (in-degree), illetve mennyit <em>adott</em>
+      (out-degree). A két nézet ugyanazt a méretskálát és ugyanazt az
+      elrendezést használja, így közvetlenül látszik, ki oszt többet, mint
+      amennyit kap. A 294 élből 226 átível a két oldal között — a félbeszakítás
+      túlnyomórészt kormány–ellenzék műfaj. Kattintásra a képviselő profilja
+      nyílik meg.
     </p>
     <div class="controls">
+      <div class="control"><label for="net-size">Pontméret</label>
+        <select id="net-size">
+          <option value="in">Kapott közbeszólás (in-degree)</option>
+          <option value="out">Adott közbeszólás (out-degree)</option>
+        </select></div>
       <div class="control"><label for="net-filter">Élek</label>
         <select id="net-filter">
           <option value="all">Mind</option>
@@ -255,7 +264,8 @@ footer.about a { color: var(--crow); }
         <select id="net-min"><option>1</option><option>2</option><option>3</option><option>5</option></select></div>
     </div>
     <div class="card"><div id="graph"></div>
-      <div class="legend" id="net-legend"></div></div>
+      <div class="legend" id="net-legend"></div>
+      <p class="note" id="net-caption"></p></div>
   </section>
 
   <!-- ----------------------------------------------------- speeches view -->
