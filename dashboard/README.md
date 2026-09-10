@@ -34,6 +34,13 @@ sentiment scale; a **heatmap on per-column z-scores** for topic x metric, so one
 diverging ramp serves every column and 0 always means the cycle average; a
 **force layout** for the interruption network.
 
+The MP/topic association is a **table, not a chart**, and reports three numbers
+rather than one: raw speeches, the share of *that MP's* output, and the share of
+*that topic's*. They rank people differently on purpose -- a backbencher who
+spoke twelve times, 92% of it on one subject, is a specialist; a frontbencher
+with nine speeches at 27% of their output is passing through. One number would
+have hidden whichever kind of association the reader wanted.
+
 ### The two network sizings
 
 The network offers node size by **in-degree** (how often a member was
@@ -63,8 +70,11 @@ validate_palette.js "#2a78d6,#eb6834,#1baf7a,#eda100" --mode light   # all pass
 validate_palette.js "#3987e5,#d95926,#199e70,#c98500" --mode dark    # all pass
 ```
 
-Light mode returns a contrast warning, which is why every strip carries a
-direct value label and the speeches tab exists as a full table view.
+Light mode returns a contrast warning, which the method says is relieved by
+visible labels *or* a table view. The speeches table used to be the second; it
+has been removed (there is a separate search site for that), so the relief now
+rests entirely on the first: every percentile strip carries a direct value and
+percentile, the topic/MP view is a table, and every mark has a tooltip.
 
 **These are not party brand colours.** The brand hex values for TISZA, KDNP and
 Mi Hazank are not reliably known here, and a wrong party colour in a political

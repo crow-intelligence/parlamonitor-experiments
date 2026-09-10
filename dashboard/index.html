@@ -154,7 +154,6 @@ footer.about a { color: var(--crow); }
     <a href="#profile">Képviselő</a>
     <a href="#topics">Témák</a>
     <a href="#network">Bekiabálások</a>
-    <a href="#speeches">Felszólalások</a>
     <a href="#about">A projektről</a>
   </nav>
   <button class="tab" id="theme" style="color:#f3dede" aria-label="Sötét mód">◐</button>
@@ -172,7 +171,6 @@ footer.about a { color: var(--crow); }
     <button class="tab" role="tab" aria-selected="true" data-view="profile">Képviselő &amp; párt</button>
     <button class="tab" role="tab" aria-selected="false" data-view="topics">Témák és reakciók</button>
     <button class="tab" role="tab" aria-selected="false" data-view="network">Ki kit szakított félbe</button>
-    <button class="tab" role="tab" aria-selected="false" data-view="speeches">Felszólalások</button>
   </div>
 
   <!-- ------------------------------------------------------ profile view -->
@@ -196,20 +194,13 @@ footer.about a { color: var(--crow); }
       <p class="note" id="strip-note"></p>
     </div>
 
-    <h2 style="margin-top:34px">Hangulat és érzelem</h2>
+    <h2 style="margin-top:34px">Miről beszél?</h2>
     <p class="lede">
-      Balra a felszólalások hangulateloszlása egy ötfokú skálán, a semlegesre
-      központozva; jobbra a négy érzelmi csatorna átlaga. A vízszintes vonal a
-      teljes ciklus átlaga, hogy legyen mihez mérni.
+      A képviselő felszólalásainak megoszlása témák szerint, a saját
+      felszólalásaihoz viszonyítva.
     </p>
-    <div class="card" style="display:grid;grid-template-columns:1fr 1fr;gap:26px" id="affect-cards">
-      <div><h3 style="font-size:14px;margin:0 0 8px">Hangulateloszlás</h3>
-        <div id="sentiment-bar"></div>
-        <div class="legend" id="sentiment-legend"></div></div>
-      <div><h3 style="font-size:14px;margin:0 0 8px">Érzelmek</h3>
-        <div id="emotion-bars"></div>
-        <p class="note" id="emotion-note"></p></div>
-    </div>
+    <div class="card"><div id="topic-mix"></div></div>
+
   </section>
 
   <!-- ------------------------------------------------------- topics view -->
@@ -229,6 +220,27 @@ footer.about a { color: var(--crow); }
         A <em>Nem besorolt maradék</em> nem téma: azok a felszólalások, amelyeket a
         klaszterezés kihagyott.</p>
     </div>
+    <h2 style="margin-top:34px" id="topic-mp-anchor">Ki beszél miről?</h2>
+    <p class="lede">
+      Válasszon témát, és megjelenik, kik szólaltak fel benne. Az „arány”
+      oszlopok azért állnak egymás mellett, mert kétféle kötődés van: valaki
+      lehet <em>a téma szakértője</em> (a saját felszólalásainak nagy része ide
+      esik), és lehet <em>a vita ura</em> (a téma felszólalásainak nagy része az
+      övé). A kettő rendszerint nem ugyanaz az ember.
+    </p>
+    <div class="controls">
+      <div class="control"><label for="pick-topic">Téma</label>
+        <select id="pick-topic"></select></div>
+      <div class="control"><label for="topic-sort">Rendezés</label>
+        <select id="topic-sort">
+          <option value="speeches">felszólalások száma</option>
+          <option value="share_of_speaker">a képviselő saját arányában</option>
+          <option value="share_of_topic">a téma arányában</option>
+        </select></div>
+    </div>
+    <div class="card"><div id="topic-mp"></div>
+      <p class="note" id="topic-mp-note"></p></div>
+
     <div class="card" style="margin-top:16px">
       <h3 style="font-size:14px;margin:0 0 8px">Kulcsszavak témánként</h3>
       <div id="topic-keywords"></div>
@@ -267,27 +279,6 @@ footer.about a { color: var(--crow); }
     <div class="card" style="padding:8px"><div id="graph"></div>
       <div class="legend" id="net-legend"></div>
       <p class="note" id="net-caption"></p></div>
-  </section>
-
-  <!-- ----------------------------------------------------- speeches view -->
-  <section id="speeches" data-panel="speeches" class="hidden">
-    <h2>Az összes felszólalás</h2>
-    <p class="lede">
-      A teljes táblázat, szűrhetően és rendezhetően. Ez egyben a diagramok
-      szöveges megfelelője is: minden érték, ami fönt színnel szerepel, itt
-      számként is kiolvasható.
-    </p>
-    <div class="controls">
-      <div class="control"><label for="sp-search">Keresés</label>
-        <input type="search" id="sp-search" placeholder="képviselő vagy kulcsszó"></div>
-      <div class="control"><label for="sp-faction">Frakció</label>
-        <select id="sp-faction"></select></div>
-      <div class="control"><label for="sp-topic">Téma</label>
-        <select id="sp-topic"></select></div>
-    </div>
-    <div class="card"><div class="scroll"><table id="sp-table">
-      <thead><tr id="sp-head"></tr></thead><tbody id="sp-body"></tbody></table></div>
-      <p class="note" id="sp-count"></p></div>
   </section>
 
   <!-- --------------------------------------------------------------- about -->

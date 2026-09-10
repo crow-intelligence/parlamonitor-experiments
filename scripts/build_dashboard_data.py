@@ -59,6 +59,7 @@ PROFILE_METRICS: tuple[tuple[str, str], ...] = (
     ("laughter_per_minute", "laughter_per_minute"),
     ("applause_per_minute", "applause_per_minute"),
     ("heckles_received", "heckles_received"),
+    ("heckles_given", "heckles_given"),
 )
 
 SENTIMENT_CLASSES = (
@@ -255,6 +256,57 @@ def build_topics(derived: Path, speeches: pd.DataFrame) -> list[dict]:
     return sorted(rows, key=lambda r: -r["n_speeches"])
 
 
+def build_topic_mp(speeches: pd.DataFrame, min_speeches: int = 2) -> list[dict]:
+    """Who speaks on what -- the topic/MP association.
+
+    Three numbers per pair, because "associated with" is ambiguous and the
+    three disagree:
+
+    ``speeches``
+        Raw count. Favours whoever spoke most in total.
+    ``share_of_speaker``
+        What fraction of *this MP's* speeches fell in this topic. High for a
+        specialist, low for a frontbencher who ranges over everything.
+    ``share_of_topic``
+        What fraction of *this topic's* speeches were theirs. High for whoever
+        dominated the debate, whatever else they also did.
+
+    A backbencher who spoke four times, all on health, scores 1.0 on the second
+    and near zero on the third; the Prime Minister is the reverse. Reporting
+    one alone would hide whichever kind of association the reader wanted.
+
+    Args:
+        speeches: The joined speech table.
+        min_speeches: Drop pairs below this, since a single speech makes
+            ``share_of_speaker`` either 0 or 1 and neither means much.
+
+    Returns:
+        One record per (topic, speaker) pair that clears the threshold.
+    """
+    named = speeches[speeches["topic"] >= 0].dropna(subset=["speaker_id"])
+    per_speaker = named.groupby("speaker_id").size()
+    per_topic = named.groupby("topic").size()
+
+    rows = []
+    grouped = named.groupby(["topic", "speaker_id", "speaker", "faction"], dropna=False)
+    for (topic, speaker_id, speaker, faction), group in grouped:
+        if len(group) < min_speeches:
+            continue
+        rows.append(
+            {
+                "topic": int(topic),
+                "speaker_id": speaker_id,
+                "speaker": speaker,
+                "faction": None if pd.isna(faction) else faction,
+                "speeches": int(len(group)),
+                "words": int(group["n_words"].sum()),
+                "share_of_speaker": round(len(group) / per_speaker[speaker_id], 4),
+                "share_of_topic": round(len(group) / per_topic[topic], 4),
+            }
+        )
+    return sorted(rows, key=lambda r: (r["topic"], -r["speeches"]))
+
+
 def build_parties(people: pd.DataFrame, speeches: pd.DataFrame) -> list[dict]:
     """Party aggregates, weighted by words where a mean would mislead."""
     rows = []
@@ -303,6 +355,8 @@ def main(argv: Sequence[str] | None = None) -> int:
     print(f"  {len(topics):,} topics")
     parties = build_parties(people, speeches)
     print(f"  {len(parties):,} factions")
+    topic_mp = build_topic_mp(speeches)
+    print(f"  {len(topic_mp):,} topic/speaker pairs")
 
     network = json.loads(
         (args.derived / "reactions" / "heckle_network.json").read_text(encoding="utf-8")
@@ -361,6 +415,7 @@ def main(argv: Sequence[str] | None = None) -> int:
         "people": json.loads(people.to_json(orient="records")),
         "parties": parties,
         "topics": topics,
+        "topic_mp": topic_mp,
         "distributions": distributions,
         "network": network,
         "speeches": json.loads(

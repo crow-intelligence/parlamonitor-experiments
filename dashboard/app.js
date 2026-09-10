@@ -31,7 +31,8 @@ const T = {
     emotion_fear:         { hu: "Félelem",                   hint: "többnyelvű modell" },
     laughter_per_minute:  { hu: "Derültség / perc",          hint: "amit kiváltott" },
     applause_per_minute:  { hu: "Taps / perc",               hint: "amit kiváltott" },
-    heckles_received:     { hu: "Kapott közbeszólás",        hint: "" }
+    heckles_received:     { hu: "Kapott közbeszólás",        hint: "amit kapott, míg beszélt" },
+    heckles_given:        { hu: "Adott közbeszólás",         hint: "amivel másokat szakított félbe" }
   },
   sentiment: ["nagyon negatív", "negatív", "semleges", "pozitív", "nagyon pozitív"],
   emotions:  { anger: "düh", joy: "öröm", sadness: "szomorúság", fear: "félelem" },
@@ -80,8 +81,8 @@ d3.json("data/dashboard.json").then(data => {
   buildTabs();
   renderProfile();
   renderTopics();
+  renderTopicMp();
   renderNetwork();
-  renderSpeeches();
 });
 
 function selectView(view) {
@@ -154,8 +155,7 @@ function renderProfile() {
   ].map(([k, v, s]) => `<div class="kpi"><div class="k">${k}</div><div class="v">${v}</div><div class="s">${s}</div></div>`).join("");
 
   drawStrips(person, party);
-  drawSentiment(person);
-  drawEmotions(person);
+  drawTopicMix(person);
 }
 
 function drawStrips(person, party) {
@@ -231,76 +231,44 @@ function drawStrips(person, party) {
     `nem szerepel: az arányszámai néhány mondaton alapulnának.`;
 }
 
-function drawSentiment(person) {
-  const keys = ["sentiment_very_negative", "sentiment_negative", "sentiment_neutral",
-    "sentiment_positive", "sentiment_very_positive"];
-  const cols = ["var(--div-neg-2)", "var(--div-neg-1)", "var(--div-mid)",
-    "var(--div-pos-1)", "var(--div-pos-2)"];
-  const vals = keys.map(k => person[k] ?? 0);
-  const total = d3.sum(vals) || 1;
-  const share = vals.map(v => v / total);
-
-  const W = 400, H = 46, mid = share[0] + share[1] + share[2] / 2;
-  const x = d3.scaleLinear().domain([-mid, 1 - mid]).range([8, W - 8]);
-  const svg = d3.select("#sentiment-bar").html("").append("svg")
-    .attr("width", W).attr("height", H).attr("role", "img")
-    .attr("aria-label", "Hangulateloszlás, semlegesre központozva");
-
-  let cursor = -mid;
-  share.forEach((s, i) => {
-    const x0 = x(cursor), x1 = x(cursor + s);
-    // 2px surface gap between segments rather than a border around them
-    svg.append("rect").attr("x", x0).attr("y", 8)
-      .attr("width", Math.max(0, x1 - x0 - 2)).attr("height", 22)
-      .attr("rx", (i === 0 || i === 4) ? 4 : 0)
-      .attr("fill", cols[i])
-      .on("mousemove", e => showTip(`${T.sentiment[i]}: <strong>${fmt(s * 100, 1)}%</strong>`, e))
-      .on("mouseleave", hideTip);
-    cursor += s;
-  });
-  svg.append("line").attr("x1", x(0)).attr("x2", x(0)).attr("y1", 4).attr("y2", 34)
-    .attr("stroke", "var(--text-secondary)").attr("stroke-width", 1);
-  svg.append("text").attr("x", x(0)).attr("y", 44).attr("text-anchor", "middle")
-    .attr("fill", "var(--text-muted)").style("font-size", "10px").text("semleges");
-
-  document.getElementById("sentiment-legend").innerHTML = T.sentiment.map((s, i) =>
-    `<span><i class="swatch" style="background:${cols[i]}"></i>${s}</span>`).join("");
-}
-
-function drawEmotions(person) {
-  const rows = [["anger", "emotion_xlm_anger"], ["joy", "emotion_xlm_joy"],
-    ["sadness", "emotion_xlm_sadness"], ["fear", "emotion_xlm_fear"]];
-  const corpus = k => d3.mean(DATA.people.filter(p => !p.below_min_speeches), p => p[k]);
-  const W = 400, RH = 30;
-  const svg = d3.select("#emotion-bars").html("").append("svg")
-    .attr("width", W).attr("height", rows.length * RH + 8);
-  const x = d3.scaleLinear().domain([0, 1]).range([92, W - 54]);
-
-  rows.forEach(([label, key], i) => {
-    const v = person[key] ?? 0, mean = corpus(key) ?? 0, y = i * RH + 10;
-    svg.append("text").attr("x", 0).attr("y", y + 12).attr("fill", "var(--text-primary)")
-      .style("font-size", "12.5px").text(T.emotions[label]);
-    svg.append("rect").attr("x", x(0)).attr("y", y + 2).attr("height", 16)
-      .attr("width", x(1) - x(0)).attr("fill", "var(--surface-2)").attr("rx", 4);
-    svg.append("rect").attr("x", x(0)).attr("y", y + 2).attr("height", 16)
-      .attr("width", Math.max(0, x(v) - x(0))).attr("fill", "var(--series-1)").attr("rx", 4)
+function drawTopicMix(person) {
+  // What this MP talks about, as a share of their own speeches. Replaces the
+  // sentiment/emotion panel that used to sit here -- every number in it is now
+  // a percentile strip above, where it can be read against the population.
+  const host = d3.select("#topic-mix").html("");
+  const mine = (DATA.topic_mp || [])
+    .filter(r => r.speaker_id === person.speaker_id)
+    .sort((a, b) => d3.descending(a.speeches, b.speeches))
+    .slice(0, 8);
+  if (!mine.length) {
+    host.append("p").attr("class", "note")
+      .text("Ehhez a képviselőhöz nincs olyan téma, amelyben legalább két alkalommal felszólalt volna.");
+    return;
+  }
+  const name = t => (DATA.topics.find(x => x.topic === t) || {}).name_hu || `#${t}`;
+  const W = Math.min(760, host.node().clientWidth || 760), RH = 26;
+  const x = d3.scaleLinear().domain([0, d3.max(mine, d => d.share_of_speaker)])
+    .range([320, W - 66]);
+  const svg = host.append("svg").attr("width", "100%").attr("height", mine.length * RH + 8)
+    .attr("viewBox", [0, 0, W, mine.length * RH + 8]);
+  mine.forEach((row, i) => {
+    const y = i * RH + 6;
+    svg.append("text").attr("x", 0).attr("y", y + 13).attr("fill", "var(--text-primary)")
+      .style("font-size", "12.5px").text(name(row.topic).slice(0, 46))
+      .append("title").text(name(row.topic));
+    svg.append("rect").attr("x", x(0)).attr("y", y + 2).attr("height", 15)
+      .attr("width", Math.max(1, x(row.share_of_speaker) - x(0)))
+      .attr("rx", 4).attr("fill", factionColour(person.faction))
       .on("mousemove", e => showTip(
-        `<strong>${T.emotions[label]}</strong><br>${person.speaker}: ${fmt(v, 3)}` +
-        `<br><span style="color:var(--text-muted)">ciklusátlag: ${fmt(mean, 3)}</span>`, e))
+        `<strong>${name(row.topic)}</strong><br>${row.speeches} felszólalás` +
+        `<br>a képviselő felszólalásainak ${fmt(row.share_of_speaker * 100, 1)}%-a` +
+        `<br>a téma felszólalásainak ${fmt(row.share_of_topic * 100, 1)}%-a`, e))
       .on("mouseleave", hideTip);
-    svg.append("line").attr("x1", x(mean)).attr("x2", x(mean))
-      .attr("y1", y).attr("y2", y + 20)
-      .attr("stroke", "var(--text-secondary)").attr("stroke-width", 2);
-    svg.append("text").attr("x", W - 48).attr("y", y + 14)
+    svg.append("text").attr("x", W - 60).attr("y", y + 14)
       .attr("fill", "var(--text-primary)").style("font-size", "12px")
-      .style("font-variant-numeric", "tabular-nums").text(fmt(v, 3));
+      .style("font-variant-numeric", "tabular-nums")
+      .text(`${fmt(row.share_of_speaker * 100, 0)}%`);
   });
-
-  document.getElementById("emotion-note").innerHTML =
-    `A függőleges vonal a ciklus átlaga. Csak a többnyelvű modell négy csatornáját ` +
-    `mutatjuk. A magyar érzelemmodell <code>fear</code> és <code>sadness</code> ` +
-    `csatornája megbukott az utólagos ellenőrzésen, ezért <span class="warn">nem ` +
-    `szerepel</span> — lásd „A projektről”.`;
 }
 
 /* --------------------------------------------------------------- topics */
@@ -370,6 +338,63 @@ function renderTopics() {
     `<div style="margin-bottom:10px"><strong style="font-size:13px">${t.name_hu}</strong>
      <span style="color:var(--text-muted);font-size:12px"> · ${t.n_speeches} felszólalás</span><br>
      ${(t.keywords || []).map(k => `<span class="chip">${k}</span>`).join("")}</div>`).join("");
+}
+
+function renderTopicMp() {
+  const select = document.getElementById("pick-topic");
+  const sortSel = document.getElementById("topic-sort");
+  const withSpeakers = DATA.topics
+    .filter(t => t.topic >= 0 && (DATA.topic_mp || []).some(r => r.topic === t.topic))
+    .sort((a, b) => d3.descending(a.n_speeches, b.n_speeches));
+  select.innerHTML = withSpeakers
+    .map(t => `<option value="${t.topic}">${t.name_hu} (${t.n_speeches})</option>`)
+    .join("");
+
+  function draw() {
+    const topic = +select.value, key = sortSel.value;
+    const rows = (DATA.topic_mp || [])
+      .filter(r => r.topic === topic)
+      .sort((a, b) => d3.descending(a[key], b[key]))
+      .slice(0, 14);
+    const host = d3.select("#topic-mp").html("");
+    if (!rows.length) {
+      host.append("p").attr("class", "note").text("Nincs adat ehhez a témához.");
+      return;
+    }
+    const table = host.append("table");
+    table.append("thead").append("tr").html(
+      `<th>Képviselő</th><th>Frakció</th><th class="num">Felszólalás</th>` +
+      `<th class="num">A képviselő arányában</th><th class="num">A téma arányában</th>`);
+    const body = table.append("tbody");
+    const maxBar = d3.max(rows, r => r[key]);
+    rows.forEach(r => {
+      const tr = body.append("tr");
+      tr.append("td").html(
+        `<span class="swatch" style="background:${factionColour(r.faction)};margin-right:7px"></span>${r.speaker}`);
+      tr.append("td").text(r.faction ?? "—");
+      tr.append("td").attr("class", "num").text(r.speeches);
+      // A bar behind the sorted column, so the ranking is visible as well as
+      // readable; the other two stay plain numbers.
+      [["share_of_speaker", r.share_of_speaker], ["share_of_topic", r.share_of_topic]]
+        .forEach(([col, value]) => {
+          const td = tr.append("td").attr("class", "num");
+          if (col === key) {
+            td.style("background",
+              `linear-gradient(to left, color-mix(in srgb, ${factionColour(r.faction)} 22%, transparent) ` +
+              `${(100 * value / maxBar).toFixed(1)}%, transparent 0)`);
+          }
+          td.append("span").text(fmt(value * 100, 1) + "%");
+        });
+    });
+    const t = DATA.topics.find(x => x.topic === topic) || {};
+    document.getElementById("topic-mp-note").textContent =
+      `${rows.length} képviselő, akik legalább kétszer szólaltak fel ebben a témában ` +
+      `(a téma összesen ${t.n_speeches} felszólalás). Az egy felszólalású ` +
+      `kötődéseket kihagytuk: ott a „képviselő arányában” oszlop 0 vagy 100% lenne.`;
+  }
+  select.onchange = draw;
+  sortSel.onchange = draw;
+  draw();
 }
 
 /* -------------------------------------------------------------- network */
@@ -621,70 +646,4 @@ function renderNetwork() {
     applySize();
   };
   draw();
-}
-
-/* ------------------------------------------------------------- speeches */
-const SP_COLS = [
-  ["speaker", "Képviselő", "text"], ["faction", "Frakció", "text"],
-  ["date", "Dátum", "text"], ["n_words", "Szó", "num"],
-  ["lix", "LIX", "num"], ["mattr", "MATTR", "num"],
-  ["sentiment_valence", "Hangulat", "num"], ["emotion_xlm_anger", "Düh", "num"],
-  ["reaction_applause", "Taps", "num"], ["reaction_laughter", "Derültség", "num"],
-  ["reaction_heckling", "Közbeszólás", "num"], ["textrank_keywords", "Kulcsszavak", "text"]
-];
-let spSort = { key: "n_words", dir: -1 };
-
-function renderSpeeches() {
-  const factions = [...new Set(DATA.speeches.map(s => s.faction).filter(Boolean))].sort();
-  document.getElementById("sp-faction").innerHTML =
-    `<option value="">Mind</option>` + factions.map(f => `<option>${f}</option>`).join("");
-  const topics = DATA.topics.filter(t => t.topic >= 0);
-  document.getElementById("sp-topic").innerHTML =
-    `<option value="">Mind</option>` +
-    topics.map(t => `<option value="${t.topic}">${t.name_hu}</option>`).join("");
-
-  document.getElementById("sp-head").innerHTML = SP_COLS.map(([k, label, kind]) =>
-    `<th data-key="${k}" class="${kind}">${label}</th>`).join("");
-  document.querySelectorAll("#sp-head th").forEach(th => th.addEventListener("click", () => {
-    const key = th.dataset.key;
-    spSort = { key, dir: spSort.key === key ? -spSort.dir : -1 };
-    document.querySelectorAll("#sp-head th").forEach(o => o.removeAttribute("aria-sort"));
-    th.setAttribute("aria-sort", spSort.dir === 1 ? "ascending" : "descending");
-    drawSpeeches();
-  }));
-  ["sp-search", "sp-faction", "sp-topic"].forEach(id =>
-    document.getElementById(id).addEventListener("input", drawSpeeches));
-  drawSpeeches();
-}
-
-function drawSpeeches() {
-  const q = document.getElementById("sp-search").value.trim().toLowerCase();
-  const f = document.getElementById("sp-faction").value;
-  const t = document.getElementById("sp-topic").value;
-  let rows = DATA.speeches.filter(s =>
-    (!f || s.faction === f) &&
-    (!t || String(s.topic) === t) &&
-    (!q || (s.speaker || "").toLowerCase().includes(q) ||
-      (s.textrank_keywords || "").toLowerCase().includes(q)));
-
-  rows = rows.slice().sort((a, b) => {
-    const x = a[spSort.key], y = b[spSort.key];
-    if (x === y) return 0;
-    if (x === null || x === undefined) return 1;
-    if (y === null || y === undefined) return -1;
-    return (x > y ? 1 : -1) * spSort.dir;
-  }).slice(0, 400);
-
-  document.getElementById("sp-body").innerHTML = rows.map(s => `<tr>` +
-    SP_COLS.map(([k, , kind]) => {
-      let v = s[k];
-      if (k === "textrank_keywords") v = (v || "").split(";").slice(0, 5).join(", ");
-      else if (kind === "num") v = fmt(v, k === "sentiment_valence" ? 3 : 2);
-      else if (k === "lix" && !s.readability_reliable) v = `${fmt(v, 1)} ⚠`;
-      return `<td class="${kind}">${v ?? "—"}</td>`;
-    }).join("") + `</tr>`).join("");
-
-  const total = DATA.speeches.length;
-  document.getElementById("sp-count").textContent =
-    `${rows.length} sor látszik a szűrésnek megfelelő találatokból (összesen ${total} felszólalás; legfeljebb 400 jelenik meg).`;
 }
