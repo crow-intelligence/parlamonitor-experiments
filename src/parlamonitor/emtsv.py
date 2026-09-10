@@ -44,6 +44,17 @@ DEFAULT_MODULES = "tok/morph/pos"
 ``xpostag`` chosen in context.
 """
 
+DEPENDENCY_MODULES = "tok/morph/pos/conv-morph/dep"
+"""Module chain that also produces a dependency parse.
+
+Adds the ``upostag``, ``feats``, ``id``, ``deprel`` and ``head`` columns.
+``conv-morph`` is required in between: ``dep`` reads universal tags, not
+emMorph ones, so a chain of ``tok/morph/pos/dep`` fails.
+
+Slower than :data:`DEFAULT_MODULES` by roughly a factor of three, which is why
+it is a separate constant rather than the default.
+"""
+
 CONTENT_CATEGORIES: tuple[str, ...] = ("N", "V", "Adj", "Adv")
 """emMorph main categories kept by :func:`is_content_word` by default."""
 
@@ -64,12 +75,24 @@ class Token:
             from the ``wsafter`` column ``tok`` emits. Empty when the chain
             produced no such column. This is what makes input line boundaries
             recoverable from a batched response -- see :func:`analyse_lines`.
+        upostag: Universal POS tag, from the ``conv-morph`` module. Empty when
+            the chain did not include it.
+        dep_id: 1-based position of the token in its sentence, as the ``dep``
+            module numbers them. ``0`` when the chain had no parser.
+        head: 1-based position of this token's governor, ``0`` for the root,
+            and ``-1`` when the chain had no parser -- which is not the same
+            as being a root, and must not be confused with one.
+        deprel: Dependency relation label. Empty without a parser.
     """
 
     form: str
     lemma: str
     xpostag: str
     wsafter: str = ""
+    upostag: str = ""
+    dep_id: int = 0
+    head: int = -1
+    deprel: str = ""
 
 
 def parse_xpostag(xpostag: str) -> tuple[str | None, tuple[str, ...]]:
@@ -181,6 +204,18 @@ def decode_wsafter(field: str) -> str:
     return decoded if isinstance(decoded, str) else field
 
 
+def _as_int(value: str, default: int) -> int:
+    """Parse an integer cell, falling back rather than raising.
+
+    emtsv writes ``_`` for an absent value in some columns, and a malformed
+    row should cost that one field rather than the whole document.
+    """
+    try:
+        return int(value)
+    except (TypeError, ValueError):
+        return default
+
+
 def parse_tsv_sentences(payload: str) -> list[list[Token]]:
     r"""Parse an emtsv TSV response, preserving its sentence boundaries.
 
@@ -231,6 +266,11 @@ def parse_tsv_sentences(payload: str) -> list[list[Token]]:
         ) from exc
     # `wsafter` is optional: only chains that start with `tok` emit it.
     ws_index = header.index("wsafter") if "wsafter" in header else None
+    # So are the parse columns: only a chain ending in `dep` emits them.
+    optional = {
+        name: header.index(name) if name in header else None
+        for name in ("upostag", "id", "head", "deprel")
+    }
 
     width = max(columns.values()) + 1
     sentences: list[list[Token]] = []
@@ -247,12 +287,23 @@ def parse_tsv_sentences(payload: str) -> list[list[Token]]:
         wsafter = ""
         if ws_index is not None and len(fields) > ws_index:
             wsafter = decode_wsafter(fields[ws_index])
+
+        def cell(name: str, default: str = "") -> str:
+            index = optional[name]
+            return (
+                fields[index] if index is not None and len(fields) > index else default
+            )
+
         current.append(
             Token(
                 form=fields[columns["form"]],
                 lemma=fields[columns["lemma"]],
                 xpostag=fields[columns["xpostag"]],
                 wsafter=wsafter,
+                upostag=cell("upostag"),
+                dep_id=_as_int(cell("id"), 0),
+                head=_as_int(cell("head"), -1),
+                deprel=cell("deprel"),
             )
         )
     if current:

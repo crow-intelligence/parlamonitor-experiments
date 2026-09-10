@@ -11,6 +11,7 @@
 <meta property="og:image" content="assets/og.png">
 <meta name="theme-color" content="#7a1f1f">
 <script src="https://cdn.jsdelivr.net/npm/d3@7/dist/d3.min.js"></script>
+
 <style>
 /* ---------------------------------------------------------------- palette
    Categorical slots validated with the dataviz skill's checker:
@@ -263,7 +264,7 @@ footer.about a { color: var(--crow); }
       <div class="control"><label for="net-min">Legalább ennyi félbeszakítás</label>
         <select id="net-min"><option>1</option><option>2</option><option>3</option><option>5</option></select></div>
     </div>
-    <div class="card"><div id="graph"></div>
+    <div class="card" style="padding:8px"><div id="graph"></div>
       <div class="legend" id="net-legend"></div>
       <p class="note" id="net-caption"></p></div>
   </section>
@@ -332,6 +333,6 @@ footer.about a { color: var(--crow); }
   </footer>
 </main>
 <div class="tip" id="tip" role="status" aria-live="polite"></div>
-<script src="app.js"></script>
+<script type="module" src="app.js"></script>
 </body>
 </html>

@@ -16,7 +16,7 @@ dependencies = [
     # Crow packages, from PyPI. saphes and keyflux are the two that map
     # directly onto this data; kenon and lexograph are here because trying
     # them on it is the point of the workspace.
-    "saphes>=0.1",
+    "saphes>=0.2.1",
     "keyflux>=0.2",
     "kenon>=0.1.2",
     "lexograph>=0.1",

@@ -2451,7 +2451,7 @@ requires-dist = [
     { name = "pytest-cov", marker = "extra == 'dev'" },
     { name = "requests", marker = "extra == 'topics'", specifier = ">=2.31" },
     { name = "ruff", marker = "extra == 'dev'", specifier = ">=0.4" },
-    { name = "saphes", specifier = ">=0.1" },
+    { name = "saphes", specifier = ">=0.2.1" },
     { name = "scikit-learn", marker = "extra == 'topics'", specifier = ">=1.4" },
     { name = "sentence-transformers", marker = "extra == 'metrics'", specifier = ">=3.0" },
     { name = "sentence-transformers", marker = "extra == 'topics'", specifier = ">=3.0" },
@@ -3296,11 +3296,11 @@ wheels = [
 
 [[package]]
 name = "saphes"
-version = "0.1.0"
+version = "0.2.1"
 source = { registry = "https://pypi.org/simple" }
-sdist = { url = "https://files.pythonhosted.org/packages/08/a8/c40bb7a18f1578feabb7b429b7af01ae7c93180db5609b18b7eb0f687e37/saphes-0.1.0.tar.gz", hash = "sha256:a0abb515fb5a6d3c5c2112525fc8a8fb5289e2ceb043c370c9c0f3ba5682c91c", size = 30824, upload-time = "2026-07-29T21:05:56.863Z" }
+sdist = { url = "https://files.pythonhosted.org/packages/cb/c7/31759edb1d6911c49ddfe9f7b89821577255a479af16e4aff546d24af87f/saphes-0.2.1.tar.gz", hash = "sha256:898b0e933f1536d4c357715c29bc36264f8984885812cc1313c66d620f45f4d0", size = 66788, upload-time = "2026-09-08T17:24:03.755Z" }
 wheels = [
-    { url = "https://files.pythonhosted.org/packages/91/6b/ef4e9372c69660e77c98156f2e92b2acb8a6126310cedff614198929fd0f/saphes-0.1.0-py3-none-any.whl", hash = "sha256:4a0e89715f26c65ee3fedf12e7d1d87c8af4c653cd8c260fbf4989861795a8bb", size = 35965, upload-time = "2026-07-29T21:05:55.425Z" },
+    { url = "https://files.pythonhosted.org/packages/83/0c/95927528aba5a26b94919b3feeb70364e946d01750fc32aa0712e2887f13/saphes-0.2.1-py3-none-any.whl", hash = "sha256:8ffea86c5aef22d11dde83ac8edce796eb2e50f487d085328ac8e845e8155b9e", size = 76931, upload-time = "2026-09-08T17:24:02.415Z" },
 ]
 
 [[package]]

@@ -1,3 +1,6 @@
+import Graph from "https://cdn.jsdelivr.net/npm/graphology@0.25.4/+esm";
+import forceAtlas2 from "https://cdn.jsdelivr.net/npm/graphology-layout-forceatlas2@0.10.1/+esm";
+
 /* Parlamonitor dashboard.
  *
  * Forms follow the data's job, not habit:
@@ -365,100 +368,210 @@ function renderTopics() {
 }
 
 /* -------------------------------------------------------------- network */
-/* Two sizings of the same graph: in-degree (how much a member was interrupted)
- * and out-degree (how much they interrupted others). They share one radius
- * scale so switching shows a real difference rather than a rescaled picture,
- * and the layout is not re-run -- nodes resize in place, which is what makes
- * "gives more than he gets" visible at a glance.
- * Edge thickness is the edge weight: how many times that pair happened. */
+/* Layout is real ForceAtlas2 -- the algorithm Gephi runs -- not a d3-force
+ * approximation. Three of its settings do the visible work:
+ *   outboundAttractionDistribution ("Dissuade Hubs") divides a node's
+ *     attraction by its degree, which pushes hubs to the rim instead of
+ *     burying them in the middle. Without it Magyar Péter sits on top of
+ *     everything and the graph reads as one blob.
+ *   linLogMode tightens clusters and opens the space between them.
+ *   gravity is kept low so the rim can breathe.
+ * Positions are computed once, then rendered with d3.
+ *
+ * Edges are quadratic beziers rather than straight lines: parallel edges
+ * separate instead of overprinting, and a curve is far easier to follow across
+ * a dense middle. Arrowheads inherit stroke width, so a heavy edge gets a
+ * heavy head and direction reads at a glance.
+ *
+ * Two sizings share one radius scale and one layout, so switching shows a real
+ * difference rather than a rescaled picture. */
 const SIZE_MODES = {
-  in:  { key: "heckles_received", partners: "hecklers",
-         label: "Kapott közbeszólás (in-degree)" },
-  out: { key: "heckles_given", partners: "targets",
-         label: "Adott közbeszólás (out-degree)" }
+  in:  { key: "heckles_received", label: "Kapott közbeszólás (in-degree)" },
+  out: { key: "heckles_given", label: "Adott közbeszólás (out-degree)" }
 };
+const FA2_ITERATIONS = 600;
+
+function layoutForceAtlas2(nodes, links, W, H) {
+  const graph = new Graph({ type: "directed", multi: false });
+  nodes.forEach(n => graph.addNode(n.id, {
+    x: Math.random() * 100 - 50, y: Math.random() * 100 - 50,
+    size: 1, mass: 1 + n.heckles_received + n.heckles_given
+  }));
+  links.forEach(l => {
+    const s = typeof l.source === "object" ? l.source.id : l.source;
+    const t = typeof l.target === "object" ? l.target.id : l.target;
+    if (s !== t && !graph.hasEdge(s, t)) graph.addDirectedEdge(s, t, { weight: l.weight });
+  });
+
+  forceAtlas2.assign(graph, {
+    iterations: FA2_ITERATIONS,
+    settings: {
+      barnesHutOptimize: true,
+      outboundAttractionDistribution: true,  // Gephi's "Dissuade Hubs"
+      linLogMode: true,
+      adjustSizes: false,
+      edgeWeightInfluence: 1,
+      scalingRatio: 22,
+      gravity: 0.55,
+      slowDown: 2
+    }
+  });
+
+  // Fit the result to the viewport, preserving aspect so the layout is not
+  // stretched into a shape ForceAtlas2 never produced.
+  const pos = nodes.map(n => graph.getNodeAttributes(n.id));
+  const [x0, x1] = d3.extent(pos, p => p.x), [y0, y1] = d3.extent(pos, p => p.y);
+  const pad = 62;
+  const k = Math.min((W - 2 * pad) / (x1 - x0 || 1), (H - 2 * pad) / (y1 - y0 || 1));
+  const cx = (x0 + x1) / 2, cy = (y0 + y1) / 2;
+  nodes.forEach((n, i) => {
+    n.x = W / 2 + (pos[i].x - cx) * k;
+    n.y = H / 2 + (pos[i].y - cy) * k;
+  });
+}
 
 function renderNetwork() {
-  const W = Math.min(1100, document.querySelector(".wrap").clientWidth - 44), H = 620;
+  const W = Math.min(1140, document.querySelector(".wrap").clientWidth - 30), H = 760;
   const filterSel = document.getElementById("net-filter");
   const minSel = document.getElementById("net-min");
   const sizeSel = document.getElementById("net-size");
 
-  // One scale for both modes, over the larger of the two maxima.
-  const maxDegree = d3.max(DATA.network.nodes,
-    n => Math.max(n.heckles_received, n.heckles_given)) || 1;
-  const r = d3.scaleSqrt().domain([0, maxDegree]).range([3.5, 26]);
-  const maxWeight = d3.max(DATA.network.links, l => l.weight) || 1;
-  const width = d3.scaleSqrt().domain([1, maxWeight]).range([1, 7]);
-
-  // Deep-linkable: index.html?size=out#network opens the out-degree view.
   const wanted = new URLSearchParams(location.search).get("size");
   if (wanted && SIZE_MODES[wanted]) sizeSel.value = wanted;
 
-  let sim = null, node = null, label = null, nodes = [];
+  const maxDegree = d3.max(DATA.network.nodes,
+    n => Math.max(n.heckles_received, n.heckles_given)) || 1;
+  const r = d3.scaleSqrt().domain([0, maxDegree]).range([5, 44]);
+  const maxWeight = d3.max(DATA.network.links, l => l.weight) || 1;
+  const width = d3.scaleSqrt().domain([1, maxWeight]).range([1.2, 14]);
+  // Label size follows node size, which is what gives the Gephi renders their
+  // reading order: the eye lands on the biggest name first.
+  const labelSize = radius => Math.max(9, Math.min(30, 8 + radius * 0.62));
+
+  let nodes = [], node = null, label = null, halo = null;
 
   function applySize() {
-    const mode = SIZE_MODES[sizeSel.value];
-    node.transition().duration(400).attr("r", d => r(d[mode.key]));
+    const key = SIZE_MODES[sizeSel.value].key;
+    node.transition().duration(450).attr("r", d => r(d[key]));
+    halo.transition().duration(450).attr("r", d => r(d[key]) + 2);
+    label.transition().duration(450)
+      .style("font-size", d => labelSize(r(d[key])) + "px")
+      .attr("x", d => d.x)
+      .attr("y", d => d.y - r(d[key]) - 6);
 
-    // Label the six heaviest on the *active* metric, not a fixed set.
-    const top = new Set(nodes.slice()
-      .sort((a, b) => d3.descending(a[mode.key], b[mode.key]))
-      .slice(0, 6).map(n => n.id));
-    label.attr("display", d => top.has(d.id) ? null : "none");
-
-    // Radii changed, so let collide relax the overlaps without re-laying out.
-    if (sim) {
-      sim.force("collide", d3.forceCollide(d => r(d[mode.key]) + 9));
-      sim.alpha(0.25).restart();
-      setTimeout(() => sim.stop(), 2500);
-    }
+    // Greedy collision avoidance: walk the nodes biggest-first and keep a
+    // label only if its box clears every label already placed. Without this
+    // the middle of the graph is a pile of overlapping names, and the fix is
+    // not "fewer labels" -- it is "no label where there is no room".
+    // Seed the occupied boxes with the larger circles: a label must clear the
+    // marks as well as the other labels, or it lands on top of a hub.
+    const placed = nodes
+      .filter(n => r(n[key]) >= 12)
+      .map(n => ({
+        id: n.id,
+        x0: n.x - r(n[key]), x1: n.x + r(n[key]),
+        y0: n.y - r(n[key]), y1: n.y + r(n[key])
+      }));
+    const show = new Set();
+    nodes.slice()
+      .sort((a, b) => d3.descending(a[key], b[key]))
+      .forEach(n => {
+        if (n[key] <= 0) return;
+        const size = labelSize(r(n[key]));
+        const w = n.label.length * size * 0.52, h = size * 1.15;
+        const box = {
+          x0: n.x - w / 2, x1: n.x + w / 2,
+          y0: n.y - r(n[key]) - 6 - h, y1: n.y - r(n[key]) - 4
+        };
+        // A node's own circle must not block its own label.
+        const clashes = placed.some(b =>
+          b.id !== n.id &&
+          box.x0 < b.x1 && box.x1 > b.x0 && box.y0 < b.y1 && box.y1 > b.y0);
+        // The single biggest node is always labelled: if the graph has one
+        // subject, dropping its name is the one failure that is not tolerable.
+        if (!clashes || show.size === 0) {
+          placed.push({ ...box, id: n.id });
+          show.add(n.id);
+        }
+      });
+    label.attr("display", d => show.has(d.id) ? null : "none");
     document.getElementById("net-caption").textContent =
       sizeSel.value === "in"
-        ? "A pont mérete: hányszor szakították félbe. A legnagyobb pontok a leggyakrabban félbeszakított képviselők."
-        : "A pont mérete: hányszor szakított félbe másokat. Ugyanaz a skála, mint a másik nézetben, így a két kép közvetlenül összevethető.";
+        ? "A pont és a név mérete: hányszor szakították félbe az illetőt."
+        : "A pont és a név mérete: hányszor szakított félbe másokat. Ugyanaz a skála és ugyanaz az elrendezés, mint a másik nézetben.";
   }
 
   function draw() {
-    const mode = SIZE_MODES[sizeSel.value];
-    const filterMode = filterSel.value, minW = +minSel.value;
+    const key = SIZE_MODES[sizeSel.value].key;
+    const mode = filterSel.value, minW = +minSel.value;
     const links = DATA.network.links
       .filter(l => l.weight >= minW)
-      .filter(l => filterMode === "all" || l.crossing === filterMode)
+      .filter(l => mode === "all" || l.crossing === mode)
       .map(l => ({ ...l }));
-    const keep = new Set(links.flatMap(l => [
-      typeof l.source === "object" ? l.source.id : l.source,
-      typeof l.target === "object" ? l.target.id : l.target]));
-    nodes = DATA.network.nodes.filter(n => keep.has(n.id)).map(n => ({ ...n }));
+    const byId = new Map(DATA.network.nodes.map(n => [n.id, n]));
+    const keep = new Set(links.flatMap(l => [l.source, l.target]));
+    nodes = [...keep].map(id => ({ ...byId.get(id) }));
+
+    layoutForceAtlas2(nodes, links, W, H);
+    const at = new Map(nodes.map(n => [n.id, n]));
+    links.forEach(l => { l.s = at.get(l.source); l.t = at.get(l.target); });
 
     const svg = d3.select("#graph").html("").append("svg")
-      .attr("width", W).attr("height", H).attr("viewBox", [0, 0, W, H])
+      .attr("width", "100%").attr("height", H)
+      .attr("viewBox", [0, 0, W, H])
       .attr("role", "img")
       .attr("aria-label", "Ki kit szakított félbe: irányított hálózat");
 
-    svg.append("defs").append("marker").attr("id", "arrow")
-      .attr("viewBox", "0 -5 10 10").attr("refX", 20).attr("markerWidth", 5)
-      .attr("markerHeight", 5).attr("orient", "auto")
-      .append("path").attr("d", "M0,-4L9,0L0,4").attr("fill", "var(--grid)");
+    // markerUnits defaults to strokeWidth, so a heavy edge gets a heavy head.
+    const defs = svg.append("defs");
+    DATA.parties.concat([{ faction: null }]).forEach((p, i) => {
+      defs.append("marker")
+        .attr("id", `arrow${i}`).attr("viewBox", "0 -5 10 10")
+        .attr("refX", 9).attr("refY", 0)
+        .attr("markerWidth", 4).attr("markerHeight", 4).attr("orient", "auto")
+        .append("path").attr("d", "M0,-4.5L9,0L0,4.5")
+        .attr("fill", factionColour(p.faction)).attr("opacity", .75);
+    });
+    const arrowFor = f => {
+      const i = DATA.parties.findIndex(p => p.faction === f);
+      return `url(#arrow${i >= 0 ? i : DATA.parties.length})`;
+    };
 
-    const link = svg.append("g").selectAll("line").data(links).join("line")
-      .attr("stroke", d => d.crossing === "cross-bench"
-        ? "var(--series-2)" : "var(--neutral)")
-      .attr("stroke-opacity", .42)
+    // Curved: control point offset perpendicular to the chord.
+    const arc = d => {
+      const dx = d.t.x - d.s.x, dy = d.t.y - d.s.y;
+      const mx = (d.s.x + d.t.x) / 2, my = (d.s.y + d.t.y) / 2;
+      const len = Math.hypot(dx, dy) || 1;
+      const bend = 0.18;
+      return `M${d.s.x},${d.s.y}Q${mx - dy * bend},${my + dx * bend} ${d.t.x},${d.t.y}`
+        .replace("NaN", "0") + (len ? "" : "");
+    };
+
+    svg.append("g").attr("fill", "none").selectAll("path").data(links).join("path")
+      .attr("d", arc)
+      // Edge takes the interrupter's colour: it reads as flow out of a person,
+      // and it is the same information the arrowhead carries.
+      .attr("stroke", d => factionColour(d.s.faction === "unknown" ? null : d.s.faction))
+      .attr("stroke-opacity", d => d.crossing === "cross-bench" ? .42 : .22)
       .attr("stroke-width", d => width(d.weight))
-      .attr("marker-end", "url(#arrow)")
+      .attr("stroke-linecap", "round")
+      .attr("marker-end", d => arrowFor(d.s.faction === "unknown" ? null : d.s.faction))
       .on("mousemove", (e, d) => showTip(
-        `<strong>${d.source.label ?? d.source}</strong> → ` +
-        `<strong>${d.target.label ?? d.target}</strong><br>` +
-        `${d.weight} félbeszakítás<br>` +
-        `<span style="color:var(--text-muted)">${d.crossing === "cross-bench"
-          ? "a két oldal között" : "azonos oldalon belül"}</span>`, e))
+        `<strong>${d.s.label}</strong> → <strong>${d.t.label}</strong><br>` +
+        `${d.weight} félbeszakítás<br><span style="color:var(--text-muted)">` +
+        `${d.crossing === "cross-bench" ? "a két oldal között" : "azonos oldalon belül"}</span>`, e))
       .on("mouseleave", hideTip);
 
+    // A surface-coloured ring separates overlapping nodes without a border.
+    halo = svg.append("g").selectAll("circle").data(nodes).join("circle")
+      .attr("cx", d => d.x).attr("cy", d => d.y)
+      .attr("r", d => r(d[key]) + 2).attr("fill", "var(--surface-1)");
+
     node = svg.append("g").selectAll("circle").data(nodes).join("circle")
-      .attr("r", d => r(d[mode.key]))
+      .attr("cx", d => d.x).attr("cy", d => d.y)
+      .attr("r", d => r(d[key]))
       .attr("fill", d => factionColour(d.faction === "unknown" ? null : d.faction))
-      .attr("stroke", "var(--surface-1)").attr("stroke-width", 2)
+      .attr("fill-opacity", .92)
       .style("cursor", "pointer")
       .on("mousemove", (e, d) => showTip(
         `<strong>${d.label}</strong> — ${d.faction ?? "nincs frakció"}<br>` +
@@ -474,39 +587,24 @@ function renderNetwork() {
         }
       });
 
-    // A surface-coloured halo keeps a label readable where the hairball forces
-    // two of them to overlap anyway.
     label = svg.append("g").selectAll("text").data(nodes).join("text")
-      .attr("fill", "var(--text-primary)").style("font-size", "11.5px")
-      .style("font-weight", "600").style("paint-order", "stroke")
-      .style("stroke", "var(--surface-1)").style("stroke-width", "3.5px")
-      .style("stroke-linejoin", "round")
-      .style("pointer-events", "none").text(d => d.label);
-
-    sim = d3.forceSimulation(nodes)
-      .force("link", d3.forceLink(links).id(d => d.id).distance(95).strength(.22))
-      .force("charge", d3.forceManyBody().strength(-330))
-      .force("center", d3.forceCenter(W / 2, H / 2))
-      .force("collide", d3.forceCollide(d => r(d[mode.key]) + 9))
-      .on("tick", () => {
-        link.attr("x1", d => d.source.x).attr("y1", d => d.source.y)
-            .attr("x2", d => d.target.x).attr("y2", d => d.target.y);
-        node.attr("cx", d => d.x = Math.max(28, Math.min(W - 28, d.x)))
-            .attr("cy", d => d.y = Math.max(28, Math.min(H - 28, d.y)));
-        label.attr("x", d => d.x + r(d[SIZE_MODES[sizeSel.value].key]) + 5)
-             .attr("y", (d, i) => d.y + 4 + (i % 2 ? 11 : -7));
-      });
-    setTimeout(() => sim.stop(), 6000);
+      .attr("x", d => d.x).attr("y", d => d.y - r(d[key]) - 6)
+      .attr("text-anchor", "middle")
+      .attr("fill", "var(--text-primary)")
+      .style("font-weight", "650").style("paint-order", "stroke")
+      .style("stroke", "var(--surface-1)").style("stroke-width", "4px")
+      .style("stroke-linejoin", "round").style("pointer-events", "none")
+      .text(d => d.label);
 
     applySize();
 
     document.getElementById("net-legend").innerHTML =
       DATA.parties.map(p =>
         `<span><i class="swatch" style="background:${factionColour(p.faction)}"></i>${p.faction}</span>`).join("") +
-      `<span><i class="swatch" style="background:var(--series-2);opacity:.55"></i>a két oldal között</span>` +
-      `<span><i class="swatch" style="background:var(--neutral);opacity:.55"></i>azonos oldalon belül</span>` +
-      `<span style="color:var(--text-muted)">a vonal vastagsága: hány félbeszakítás (1–${maxWeight})</span>` +
-      `<span style="color:var(--text-muted)">${nodes.length} képviselő · ${links.length} él</span>`;
+      `<span style="color:var(--text-muted)">a nyíl színe a bekiabáló frakciója · ` +
+      `vastagsága hány félbeszakítás (1–${maxWeight}) · ` +
+      `a halványabb élek azonos oldalon belül futnak</span>` +
+      `<span style="color:var(--text-muted)">${nodes.length} képviselő · ${links.length} él · ForceAtlas2</span>`;
   }
 
   filterSel.onchange = draw;
@@ -515,7 +613,7 @@ function renderNetwork() {
     const url = new URL(location.href);
     url.searchParams.set("size", sizeSel.value);
     history.replaceState(null, "", url);
-    applySize();                  // resize in place; keep the layout
+    applySize();
   };
   draw();
 }
