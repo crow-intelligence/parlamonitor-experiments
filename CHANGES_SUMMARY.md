@@ -381,3 +381,76 @@ keywords, sentiment and emotion. The analysis is
 - **The `metrics` extra is optional.** keybert reaches sentence-transformers
   and transformers reaches torch; the core install stays light, and TextRank
   needs neither.
+
+---
+
+# Task 6 — syntactic complexity and loanword ratio
+
+Same branch. Two saphes measures that were missed the first time round, plus a
+parser change.
+
+**New:** `src/parlamonitor/syntax.py` (MDD/MHD via saphes, over a HuSpaCy or an
+emtsv parse), `src/parlamonitor/loanwords.py` (idegenszó-arány),
+`scripts/speech_syntax.py`, two test modules.
+
+## Why these were missed
+
+`loanword_ratio`, `mean_dependency_distance` and `mean_hierarchical_distance`
+are in saphes **0.2.1**; the installed version was **0.1.0**, which has none of
+them. The API was checked by introspecting the installed package rather than by
+reading the documentation, so the three did not appear. The lesson is small and
+concrete: introspection tells you what you have, not what exists.
+
+## What needs a human call (Task 6)
+
+1. **The loanword lexicon is not in this repo, by choice.** It is read from
+   `../saphes/experiments/loanwords/results/idegenszavak.txt` and recorded by
+   sha256. saphes' own study leaves its licence open — it is derived from a
+   webcorpus and verified against a copyrighted dictionary — so committing it
+   here would settle a question that study deliberately left open. A checkout
+   without the sibling repo gets a null column and a printed warning, not a
+   silent zero.
+
+2. **Proper nouns are excluded by a capitalisation proxy, not by NER.** emtsv
+   lowercases the lemma of a sentence-initial common noun and leaves a proper
+   noun's case alone, so a capitalised lemma is a usable signal. It will
+   misfile a genuinely capitalised common noun. The alternative — counting
+   every foreign surname as a loan word — is a larger and more systematic
+   error in a parliamentary corpus.
+
+3. **MDD is parser-dependent and the two parsers are not interchangeable.**
+   HuSpaCy follows Universal Dependencies; emtsv's `dep` uses its own scheme.
+   Head conventions decide every distance. `parser` is on every result and the
+   manifest says not to mix them.
+
+## Decisions that change the numbers (Task 6)
+
+| decision | default | why |
+| --- | --- | --- |
+| Parser | HuSpaCy `hu_core_news_md` | emtsv's cost is super-linear in document length; 3,000 words does not return inside 100 s |
+| `min_sentence_length` | 3 | Jing & Liu's; this corpus is full of `Köszönöm.` whose MDD is a degenerate 1 |
+| `max_sentence_length` | 120 | measured, not guessed: median 15, p99.9 102, and the roll-call's "sentence" is 517 |
+| Cross-sentence heads | made local roots, counted | dropping the documents would bias the corpus toward what the parser found easy |
+| Punctuation | `collapse` | the policy the literature uses |
+| MP aggregation | token-weighted | a two-sentence intervention should not weigh as much as a twenty-minute address |
+| Loanword unit | content lemmas, proper nouns excluded | surface forms miss the lexicon and return a plausible, low ratio with no error |
+
+## What surfaced
+
+- **saphes refused the first parse, correctly.** HuSpaCy runs `senter` before
+  `parser`, so sentence boundaries and heads can disagree, and `from_spacy`
+  raises rather than measuring the disagreement. Excluding `senter` does not
+  help — the parser itself emits cross-boundary heads. At corpus scale it is
+  2 tokens in 826,775.
+- **The roll-call broke a second metric.** It already had `readability_reliable
+  = false` for LIX at 594; unfiltered it also scored MHD 26.3 against a median
+  of 2.4, which flattened all 88 speakers onto one edge of the dashboard's
+  percentile strip. Same record, same cause, and now caught by a measured
+  sentence-length cap.
+- **Two independent measures agree.** Bencsik János is top on LIX (52.2) and on
+  MDD (2.86). One counts long words in long sentences, the other how far a word
+  sits from its governor; nothing mechanical connects them.
+- **`huspacy.download()` silently no-ops under uv.** It shells out to
+  `python -m pip`, which a uv venv does not have, and returns 0 anyway. The
+  model wheel is also misnamed (`-any-` where a version belongs), so uv rejects
+  it by URL; it has to be renamed and installed from a local file.

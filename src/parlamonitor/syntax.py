@@ -16,10 +16,17 @@ parse tree. MDD and MHD trade off against each other -- a language or a writer
 can buy shorter dependencies with a deeper tree, or the reverse -- which is why
 Jing & Liu report the pair rather than either alone.
 
-Both need a **parse**, which is why the emtsv chain here is
-:data:`parlamonitor.emtsv.DEPENDENCY_MODULES` and not the default one. The
-arithmetic is saphes'; this module only adapts emtsv's columns to saphes'
-input contract and records which parser produced them.
+Both need a **parse**, and the parser here is **HuSpaCy**
+(``hu_core_news_md``) rather than emtsv. emtsv can produce one -- the chain is
+:data:`parlamonitor.emtsv.DEPENDENCY_MODULES` and this module still accepts its
+output -- but its cost grows super-linearly with document length: 80 words in
+0.4 s, 633 in 14 s, and a 3,000-word request does not return inside 100 s. On a
+826,775-word corpus with a 5,281-word longest speech that is hours. HuSpaCy
+parses at ~2,100 words/s, linearly, and its ``max_length`` of 1,000,000
+characters means the longest speech here (39,103) needs no chunking at all.
+
+The arithmetic is saphes'; this module only adapts a parse to saphes' input
+contract and records which parser produced it.
 
 **The parser is part of the measurement.** Two parsers can score the same text
 differently because they follow different head conventions -- whether a
@@ -30,21 +37,67 @@ number taken from it.
 
 from __future__ import annotations
 
-from collections.abc import Sequence
-from dataclasses import dataclass
+from collections.abc import Iterable, Sequence
+from dataclasses import dataclass, replace
+from typing import Protocol
 
 from saphes import DepToken, mean_dependency_distance, mean_hierarchical_distance
 
 from parlamonitor.emtsv import Token
 
-PARSER = "emtsv tok/morph/pos/conv-morph/dep"
-"""What produced the parses. Provenance, and it belongs beside every score."""
+
+class _DepToken(Protocol):
+    """The token attributes a parse must expose. spaCy's satisfies this."""
+
+    i: int
+    pos_: str
+
+    @property
+    def head(self) -> _DepToken: ...
+    @property
+    def is_punct(self) -> bool: ...
+
+
+class _Doc(Protocol):
+    """The one attribute a parsed document must expose."""
+
+    @property
+    def sents(self) -> Iterable[Iterable[_DepToken]]: ...
+
+
+PARSER = "HuSpaCy hu_core_news_md 3.8.0"
+"""What produced the parses. Provenance, and it belongs beside every score.
+
+Not interchangeable with the emtsv figure. HuSpaCy follows Universal
+Dependencies -- ``nsubj``, ``obj``, ``det`` -- while emtsv's ``dep`` emits
+``SUBJ``, ``OBJ``, ``DET`` under its own scheme, and the two disagree about
+which word governs which in exactly the constructions that decide a distance.
+An MDD from one parser must not be compared with an MDD from the other.
+"""
+
+EMTSV_PARSER = "emtsv tok/morph/pos/conv-morph/dep"
+"""The alternative parser :func:`measure` also accepts, via emtsv tokens."""
 
 PUNCTUATION_POLICY = "collapse"
 """How punctuation is handled, as the dependency-distance literature does it.
 
 Punctuation is removed and the distances recomputed over what remains, so a
 comma between a word and its head does not count as a token of distance.
+"""
+
+MAX_SENTENCE_LENGTH = 120
+"""Sentences longer than this are discarded, as un-punctuated text.
+
+The mirror of :data:`MIN_SENTENCE_LENGTH`, and needed for the same reason:
+not every record in this corpus is prose. The notary's roll-call is a list of
+names with no full stop, which the parser reads as a 517-token "sentence" and
+scores at MHD 26.3 against a corpus median of 2.4 -- one record was enough to
+squash every other speaker on the axis.
+
+Measured on the corpus rather than guessed: sentence length is 15 tokens at the
+median, 69 at the 99th percentile and 102 at the 99.9th. A cap of 120 discards
+about 0.07% of sentences and removes the artefact. Discards are counted
+separately from short-sentence discards, so the filter is visible.
 """
 
 MIN_SENTENCE_LENGTH = 3
@@ -67,7 +120,12 @@ class SyntaxResult:
         n_sentences: Sentences that entered the calculation.
         n_sentences_discarded: Sentences dropped for being shorter than
             :data:`MIN_SENTENCE_LENGTH`.
+        n_sentences_too_long: Sentences dropped for exceeding
+            :data:`MAX_SENTENCE_LENGTH`, which means the text had no sentence
+            punctuation there.
         n_tokens: Non-punctuation tokens counted.
+        n_heads_repaired: Tokens whose governor lay outside their own sentence
+            and were made local roots. See :func:`from_spacy_repaired`.
         parser: :data:`PARSER`.
         min_sentence_length: The filter used.
         punctuation: The punctuation policy used.
@@ -77,9 +135,12 @@ class SyntaxResult:
     mhd: float | None
     n_sentences: int
     n_sentences_discarded: int
+    n_sentences_too_long: int
     n_tokens: int
+    n_heads_repaired: int = 0
     parser: str = PARSER
     min_sentence_length: int = MIN_SENTENCE_LENGTH
+    max_sentence_length: int = MAX_SENTENCE_LENGTH
     punctuation: str = PUNCTUATION_POLICY
 
 
@@ -125,6 +186,108 @@ def to_dep_tokens(sentence: Sequence[Token]) -> list[DepToken]:
         )
         for token in sentence
     ]
+
+
+def from_spacy_repaired(doc: _Doc) -> tuple[list[list[DepToken]], int]:
+    """Adapt a spaCy ``Doc``, repairing heads that cross a sentence boundary.
+
+    saphes' own :func:`saphes.from_spacy` refuses such a parse, and it is right
+    to: the segmenter and the parser have disagreed, and silently keeping the
+    distance would measure the disagreement. But refusing costs about one
+    document in forty here, and dropping those would bias the corpus toward
+    the texts the parser found easy.
+
+    The repair is the conventional one: a token whose governor lies outside its
+    own sentence becomes a **local root**. That is what a sentence-level parse
+    of the same string would have produced, and saphes tolerates multi-root
+    sentences by default. The count is returned so it can be reported rather
+    than absorbed.
+
+    Args:
+        doc: A parsed ``Doc``.
+
+    Returns:
+        A ``(parses, n_repaired)`` pair, indices renumbered from 1 within each
+        sentence.
+
+    Raises:
+        TypeError: If ``doc`` has no ``sents``.
+
+    Example:
+        A stand-in doc whose second token is governed by a token in the
+        *next* sentence -- the disagreement this repairs:
+
+        >>> class Tok:
+        ...     def __init__(self, i, pos="NOUN"):
+        ...         self.i, self.pos_, self.head = i, pos, None
+        ...     @property
+        ...     def is_punct(self): return self.pos_ == "PUNCT"
+        >>> a, b, c = Tok(0), Tok(1), Tok(2)
+        >>> a.head, b.head, c.head = a, c, c     # b's governor is outside
+        >>> class Doc:
+        ...     sents = [[a, b], [c]]
+        >>> parses, repaired = from_spacy_repaired(Doc())
+        >>> [(t.index, t.head) for t in parses[0]]
+        [(1, 0), (2, 0)]
+        >>> repaired
+        1
+    """
+    if not hasattr(doc, "sents"):
+        raise TypeError("expected a parsed Doc with a `sents` attribute")
+    parses: list[list[DepToken]] = []
+    repaired = 0
+    for sentence in doc.sents:
+        tokens = list(sentence)
+        if not tokens:
+            continue
+        start = tokens[0].i
+        span = {token.i for token in tokens}
+        adapted = []
+        for token in tokens:
+            head_index = token.head.i
+            if head_index == token.i:
+                head = 0  # spaCy marks a root as its own head
+            elif head_index in span:
+                head = head_index - start + 1
+            else:
+                head = 0
+                repaired += 1
+            adapted.append(
+                DepToken(
+                    index=token.i - start + 1,
+                    head=head,
+                    is_punct=bool(token.is_punct),
+                    pos=getattr(token, "pos_", None),
+                )
+            )
+        parses.append(adapted)
+    return parses, repaired
+
+
+def measure_doc(
+    doc: _Doc, *, min_sentence_length: int = MIN_SENTENCE_LENGTH
+) -> SyntaxResult:
+    """Measure a parsed spaCy or HuSpaCy ``Doc``.
+
+    Uses saphes' own adapter, which renumbers token indices within each
+    sentence and refuses a parse whose heads cross a sentence boundary.
+
+    Args:
+        doc: A ``Doc`` from a pipeline that includes a parser. A
+            ``senter``-only pipeline has no heads to read and would silently
+            make every token its own root.
+        min_sentence_length: Discard sentences shorter than this, counted in
+            non-punctuation tokens. Defaults to 3.
+
+    Returns:
+        A :class:`SyntaxResult`.
+
+    Raises:
+        ValueError: If the document has no sentences.
+    """
+    parses, repaired = from_spacy_repaired(doc)
+    result = _measure_parses(parses, min_sentence_length, PARSER)
+    return replace(result, n_heads_repaired=repaired)
 
 
 def measure(
@@ -175,36 +338,62 @@ def measure(
     """
     if not sentences:
         raise ValueError("cannot measure syntax of a text with no sentences")
+    return _measure_parses(
+        [to_dep_tokens(sentence) for sentence in sentences],
+        min_sentence_length,
+        EMTSV_PARSER,
+    )
 
-    parses = [to_dep_tokens(sentence) for sentence in sentences]
+
+def _measure_parses(
+    parses: list[list[DepToken]],
+    min_sentence_length: int,
+    parser: str,
+    max_sentence_length: int = MAX_SENTENCE_LENGTH,
+) -> SyntaxResult:
+    """Run the metrics over already-adapted parses."""
+    if not parses:
+        raise ValueError("cannot measure syntax of a text with no sentences")
+    lengths = [sum(1 for token in parse if not token.is_punct) for parse in parses]
+    too_long = sum(1 for n in lengths if n > max_sentence_length)
     qualifying = [
         parse
-        for parse in parses
-        if sum(1 for token in parse if not token.is_punct) >= min_sentence_length
+        for parse, n in zip(parses, lengths, strict=True)
+        if min_sentence_length <= n <= max_sentence_length
     ]
     if not qualifying:
         return SyntaxResult(
             mdd=None,
             mhd=None,
             n_sentences=0,
-            n_sentences_discarded=len(parses),
+            n_sentences_discarded=len(parses) - too_long,
+            n_sentences_too_long=too_long,
             n_tokens=0,
+            parser=parser,
             min_sentence_length=min_sentence_length,
         )
 
-    shared = {
-        "punctuation": PUNCTUATION_POLICY,
-        "aggregation": "macro",
-        "min_sentence_length": min_sentence_length,
-        "parser": PARSER,
-    }
-    mdd = mean_dependency_distance(parses, **shared)
-    mhd = mean_hierarchical_distance(parses, **shared)
+    mdd = mean_dependency_distance(
+        qualifying,
+        punctuation=PUNCTUATION_POLICY,
+        aggregation="macro",
+        min_sentence_length=min_sentence_length,
+        parser=parser,
+    )
+    mhd = mean_hierarchical_distance(
+        qualifying,
+        punctuation=PUNCTUATION_POLICY,
+        aggregation="macro",
+        min_sentence_length=min_sentence_length,
+        parser=parser,
+    )
     return SyntaxResult(
         mdd=round(float(mdd.mdd), 6),
         mhd=round(float(mhd.mhd), 6),
         n_sentences=len(qualifying),
-        n_sentences_discarded=len(parses) - len(qualifying),
+        n_sentences_discarded=len(parses) - len(qualifying) - too_long,
+        n_sentences_too_long=too_long,
         n_tokens=sum(1 for parse in qualifying for t in parse if not t.is_punct),
+        parser=parser,
         min_sentence_length=min_sentence_length,
     )

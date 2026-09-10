@@ -332,6 +332,28 @@ uv run python scripts/validate_affect.py   # does the affect actually work?
 
 `data/derived/metrics/REPORT.md` is the analysis. 1,693 cycle-43 speeches.
 
+**Syntactic complexity** via `saphes`: mean dependency distance (MDD) and mean
+hierarchical distance (MHD), Jing & Liu (2015). These need a *parse*, and the
+parser is **HuSpaCy** (`hu_core_news_md`), not emtsv — emtsv can parse, but its
+cost grows super-linearly with document length (80 words in 0.4 s, 633 in 14 s,
+a 3,000-word request not returning inside 100 s), which on this corpus is hours.
+HuSpaCy runs in-process at ~2,000 words/s, linearly, so the corpus takes ~7
+minutes and the 5,281-word longest speech needs no chunking.
+
+MDD and MHD correlate at only 0.56, which is why the pair is reported rather
+than either alone. **The parser is part of the measurement** — head conventions
+decide every distance — so `parser` is recorded on every result, and a HuSpaCy
+MDD must not be compared with an emtsv one.
+
+**Loanword ratio** (*idegenszó-arány*) via `saphes`, against a 15,203-lemma list
+verified against Bakos Ferenc's dictionary. The lexicon is a required argument
+with no default — saphes ships none, deliberately — so it is read by path from
+the sibling `saphes` checkout and recorded by hash, not copied into this repo.
+Two properties shape the number: the list drops the top 2% by corpus frequency
+as ordinary vocabulary, so this measures *uncommon* foreign words; and proper
+nouns are excluded via a capitalisation proxy on emtsv lemmas, without which
+every foreign surname would count.
+
 **Readability** via `saphes`, with three non-default choices: the long-word
 threshold is **8** (`recommended_threshold("hu")`, not LIX's Swedish 6), length
 is counted in **letters** not characters (`asszony` is 7 characters but 5

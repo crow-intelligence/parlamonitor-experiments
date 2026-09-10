@@ -31,6 +31,7 @@ dependencies = [
     # It arrives transitively through kenon, but a direct import deserves a
     # direct declaration.
     "networkx>=3.0",
+    "huspacy>=0.12.1",
 ]
 
 [project.optional-dependencies]

@@ -43,6 +43,8 @@ from parlamonitor.emtsv import (
 )
 from parlamonitor.keywords import DEFAULT_TOP_N, DEFAULT_WINDOW, textrank
 from parlamonitor.loading import DATA_RAW
+from parlamonitor.loanwords import load_lexicon
+from parlamonitor.loanwords import measure as measure_loanwords
 from parlamonitor.readability import (
     HUNGARIAN_LONG_WORD_THRESHOLD,
     MATTR_WINDOW,
@@ -53,6 +55,18 @@ from parlamonitor.stopwords import hungarian_stopwords
 ROOT = Path(__file__).resolve().parents[1]
 DEFAULT_OUTPUT_DIR = ROOT / "data" / "derived" / "metrics"
 CHECKPOINT = 200
+
+# Not committed here: the list is derived from a webcorpus and verified against
+# a copyrighted dictionary, and saphes' own study leaves its licence open. It
+# is read from the sibling checkout and recorded by hash instead.
+DEFAULT_LEXICON = (
+    ROOT.parent
+    / "saphes"
+    / "experiments"
+    / "loanwords"
+    / "results"
+    / "idegenszavak.txt"
+)
 
 
 def parse_args(argv: Sequence[str] | None = None) -> argparse.Namespace:
@@ -70,6 +84,13 @@ def parse_args(argv: Sequence[str] | None = None) -> argparse.Namespace:
         "--long-word-threshold", type=int, default=HUNGARIAN_LONG_WORD_THRESHOLD
     )
     parser.add_argument("--no-keybert", action="store_true")
+    parser.add_argument(
+        "--lexicon",
+        type=Path,
+        default=DEFAULT_LEXICON,
+        help="idegen szavak word list; saphes ships none, so this is required "
+        "for the loanword ratio and the column is left null without it",
+    )
     parser.add_argument("--refresh-cache", action="store_true")
     return parser.parse_args(argv)
 
@@ -210,6 +231,14 @@ def main(argv: Sequence[str] | None = None) -> int:
     analyse_speeches(records, cache, cache_path, args)
 
     stoplist = hungarian_stopwords()
+
+    lexicon = None
+    try:
+        lexicon = load_lexicon(args.lexicon)
+        print(f"Loanword lexicon: {lexicon.size:,} lemmas ({lexicon.lexicon_id})")
+    except (FileNotFoundError, ValueError) as exc:
+        print(f"  no loanword lexicon ({exc}); the ratio will be null")
+
     print("Measuring ...")
     rows = []
     skipped = []
@@ -231,6 +260,7 @@ def main(argv: Sequence[str] | None = None) -> int:
             window=args.textrank_window,
             stopwords=stoplist,
         )
+        foreign = measure_loanwords(content, lexicon) if lexicon else None
         speaker = record.get("speaker") or {}
         rows.append(
             {
@@ -256,6 +286,14 @@ def main(argv: Sequence[str] | None = None) -> int:
                 "n_types": result.n_types,
                 "long_word_threshold": result.long_word_threshold,
                 "mattr_window": result.mattr_window,
+                "loanword_ratio": (
+                    round(foreign.ratio, 6) if foreign is not None else None
+                ),
+                "loanword_matched": foreign.matched if foreign is not None else None,
+                "loanword_total": (
+                    foreign.total_lemmas if foreign is not None else None
+                ),
+                "loanword_excluded": foreign.excluded if foreign is not None else None,
                 "textrank_keywords": ";".join(term for term, _ in ranked),
                 "textrank_scores": ";".join(f"{score:.6f}" for _, score in ranked),
                 "notes": ";".join(result.notes),
@@ -300,6 +338,7 @@ def main(argv: Sequence[str] | None = None) -> int:
             ),
             rix_mean=("rix", "mean"),
             mattr_mean=("mattr", "mean"),
+            loanword_ratio_mean=("loanword_ratio", "mean"),
             words_per_sentence_mean=("words_per_sentence", "mean"),
         )
         .reset_index()
@@ -341,6 +380,14 @@ def main(argv: Sequence[str] | None = None) -> int:
             "textrank_window": args.textrank_window,
             "top_n": args.top_n,
             "keybert": not args.no_keybert,
+            "loanword_lexicon": str(args.lexicon) if lexicon else None,
+            "loanword_lexicon_id": lexicon.lexicon_id if lexicon else None,
+            "loanword_lexicon_size": lexicon.size if lexicon else None,
+            "loanword_unit": "content-word lemmas, proper nouns excluded",
+            "loanword_propn_detection": (
+                "proxy: a capitalised emtsv lemma is treated as a proper noun; "
+                "this is not named-entity recognition"
+            ),
         },
         "counts": {
             "speeches": len(frame),

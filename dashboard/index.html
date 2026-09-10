@@ -299,12 +299,17 @@ footer.about a { color: var(--crow); }
       kormánypártok soraiban.”) a 39–43. ciklusból dolgoztuk fel, összesen
       261 935 sort.</p>
     <p><strong>Módszer.</strong> Lemmatizálás és mondatra bontás
-      <a href="https://github.com/nytud/emtsv">emtsv</a>-vel. Olvashatóság:
+      <a href="https://github.com/nytud/emtsv">emtsv</a>-vel; függőségi elemzés
+      <a href="https://github.com/huspacy/huspacy">HuSpaCy</a>-vel
+      (<code>hu_core_news_md</code>, CC BY-SA 4.0). Olvashatóság:
       LIX és RIX a <a href="https://saphes.readthedocs.io/">saphes</a>
       csomaggal, magyarra kalibrált 8 betűs hosszúszó-küszöbbel, magyar
       betűszámlálással (a <em>cs, gy, ly, ny, sz, ty, zs, dzs</em> egy betű).
-      Szókincs-változatosság: MATTR, 100 tokenes ablakkal. Kulcsszavak: TextRank
-      és KeyBERT. Hangulat: <code>NYTK/sentiment-hts5-hubert-hungarian</code>.
+      Szókincs-változatosság: MATTR, 100 tokenes ablakkal. Mondattani
+      összetettség: átlagos függőségi távolság (MDD) és hierarchikus mélység
+      (MHD), Jing &amp; Liu (2015) szerint, legalább 3 szavas mondatokon.
+      Idegenszó-arány: 15 203 lemmás lista alapján (Bakos Ferenc szótárához
+      mérve), tulajdonnevek nélkül. Kulcsszavak: TextRank és KeyBERT. Hangulat: <code>NYTK/sentiment-hts5-hubert-hungarian</code>.
       Érzelem: <code>visegradmedia-emotion/Emotion_RoBERTa_hungarian6</code> és
       <code>MilaNLProc/xlm-emo-t</code>. Témák: BERTopic huBERT-beágyazásokon.</p>
     <p><strong>Amit ez nem mér.</strong> Az érzelemmodellek közösségi médián
@@ -316,6 +321,15 @@ footer.about a { color: var(--crow); }
       nem mutatjuk. <strong>Big Five személyiségpontszám nem készült</strong>:
       magyar modell nem létezik, az angol nyelvűek pedig nem vihetők át erre a
       nyelvre és műfajra.</p>
+    <p><strong>Az elemző része a mérésnek.</strong> Egy függőségi elemző annak a
+      korpusznak a fej-konvencióit hozza magával, amelyen tanították, és ezek a
+      konvenciók döntik el az összes távolságot. Az itt közölt MDD- és
+      MHD-értékek HuSpaCy-vel készültek, és <em>nem</em> vethetők össze más
+      elemző számaival. Az idegenszó-arány szintén annyit ér, amennyit a
+      szólista: az itt használt lista gyakoriság szerint válogat, és a leggyakoribb
+      2%-ot köznyelvi szókincsként elhagyta — tehát a <em>ritka</em> idegen
+      szavakat méri, a <code>probléma</code> vagy a <code>program</code> nincs
+      benne.</p>
     <p><strong>Lefedettség.</strong> Minden képviselőhöz kötött pontszám a 43.
       ciklusé, mert csak ehhez van beszédexport. A bekiabálás-hálózat 916 névvel
       jelölt közbeszólásból épül; a ciklus közbeszólásainak további 41%-a

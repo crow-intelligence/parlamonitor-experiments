@@ -18,12 +18,17 @@ import forceAtlas2 from "https://cdn.jsdelivr.net/npm/graphology-layout-forceatl
  */
 const T = {
   metrics: {
-    readability_lix:      { hu: "Olvashatóság (LIX)",        hint: "magasabb = nehezebb" },
+    readability_lix:      { hu: "Olvashatóság (LIX)",        hint: "hosszú szavak hosszú mondatokban" },
+    syntax_mdd:           { hu: "Függőségi távolság (MDD)",  hint: "milyen messze van egy szó a fejétől — memóriaterhelés" },
+    syntax_mhd:           { hu: "Hierarchikus mélység (MHD)", hint: "milyen mély az elemzési fa" },
     diversity_mattr:      { hu: "Szókincs (MATTR)",          hint: "magasabb = változatosabb" },
+    loanword_ratio:       { hu: "Idegen szavak aránya",      hint: "ritka idegen eredetű lemmák, tulajdonnevek nélkül" },
     words_per_sentence:   { hu: "Szó / mondat",              hint: "" },
     sentiment_valence:    { hu: "Hangulat",                  hint: "−1 negatív … +1 pozitív" },
-    emotion_anger:        { hu: "Düh",                       hint: "" },
-    emotion_joy:          { hu: "Öröm",                      hint: "" },
+    emotion_anger:        { hu: "Düh",                       hint: "többnyelvű modell" },
+    emotion_joy:          { hu: "Öröm",                      hint: "többnyelvű modell" },
+    emotion_sadness:      { hu: "Szomorúság",                hint: "többnyelvű modell" },
+    emotion_fear:         { hu: "Félelem",                   hint: "többnyelvű modell" },
     laughter_per_minute:  { hu: "Derültség / perc",          hint: "amit kiváltott" },
     applause_per_minute:  { hu: "Taps / perc",               hint: "amit kiváltott" },
     heckles_received:     { hu: "Kapott közbeszólás",        hint: "" }
@@ -32,7 +37,7 @@ const T = {
   emotions:  { anger: "düh", joy: "öröm", sadness: "szomorúság", fear: "félelem" },
   heat: {
     sentiment_valence: "Hangulat", emotion_anger: "Düh", emotion_joy: "Öröm",
-    lix: "LIX", mattr: "Szókincs",
+    lix: "LIX", mdd: "MDD", loanword_ratio: "Idegen sz.", mattr: "Szókincs",
     reaction_applause_per_hour: "Taps/ó", reaction_laughter_per_hour: "Derültség/ó",
     reaction_heckling_per_hour: "Közbeszólás/ó", reaction_bell_per_hour: "Csengő/ó"
   }
@@ -312,7 +317,7 @@ function renderTopics() {
   const z = (t, c) => (t[c] === null || t[c] === undefined)
     ? null : (t[c] - stats[c].mean) / stats[c].sd;
 
-  const LABEL = 300, CELL = 74, RH = 26, W = LABEL + cols.length * CELL + 10;
+  const LABEL = 290, CELL = 64, RH = 26, W = LABEL + cols.length * CELL + 10;
   const H = topics.length * RH + 54;
   const colour = d3.scaleLinear()
     .domain([-2, -1, 0, 1, 2])

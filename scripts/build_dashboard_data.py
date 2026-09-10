@@ -46,11 +46,16 @@ DEFAULT_OUT = ROOT / "dashboard" / "data"
 # whether higher is "more of the thing" for the axis direction).
 PROFILE_METRICS: tuple[tuple[str, str], ...] = (
     ("lix_word_weighted", "readability_lix"),
+    ("mdd", "syntax_mdd"),
+    ("mhd", "syntax_mhd"),
     ("mattr_mean", "diversity_mattr"),
+    ("loanword_ratio_mean", "loanword_ratio"),
     ("words_per_sentence_mean", "words_per_sentence"),
     ("sentiment_valence", "sentiment_valence"),
     ("emotion_xlm_anger", "emotion_anger"),
     ("emotion_xlm_joy", "emotion_joy"),
+    ("emotion_xlm_sadness", "emotion_sadness"),
+    ("emotion_xlm_fear", "emotion_fear"),
     ("laughter_per_minute", "laughter_per_minute"),
     ("applause_per_minute", "applause_per_minute"),
     ("heckles_received", "heckles_received"),
@@ -86,6 +91,7 @@ def build_speeches(derived: Path) -> pd.DataFrame:
     metrics = read(derived / "metrics" / "speech_metrics.csv")
     affect = read(derived / "metrics" / "speech_affect.csv")
     topics = read(derived / "task2" / "bertopic_documents.csv")
+    syntax_path = derived / "metrics" / "speech_syntax.csv"
 
     affect_columns = [
         c
@@ -96,6 +102,16 @@ def build_speeches(derived: Path) -> pd.DataFrame:
     frame = frame.merge(
         topics[["uid", "topic", "topic_reduced", "probability"]], on="uid", how="left"
     )
+    # Syntactic complexity is optional: it needs a parse, and the dashboard
+    # should still build from a checkout that has not run it.
+    if syntax_path.is_file():
+        syntax = read(syntax_path)
+        frame = frame.merge(
+            syntax[["uid", "mdd", "mhd", "n_parsed_sentences"]], on="uid", how="left"
+        )
+    else:
+        frame["mdd"] = None
+        frame["mhd"] = None
 
     # Reaction counts per speech, pivoted from the long event table.
     reactions = read(derived / "reactions" / "speech_reactions.csv")
@@ -119,6 +135,7 @@ def build_people(derived: Path, speeches: pd.DataFrame, min_speeches: int):
     affect = read(derived / "metrics" / "mp_affect.csv")
     reactions = read(derived / "reactions" / "mp_reaction_scores.csv")
     nodes = read(derived / "reactions" / "heckle_nodes.csv")
+    syntax_path = derived / "metrics" / "mp_syntax.csv"
 
     # `speeches` and `words` appear in all three tables and do not mean the same
     # thing: mp_metrics counts only the records whose readability is usable, so
@@ -142,6 +159,13 @@ def build_people(derived: Path, speeches: pd.DataFrame, min_speeches: int):
         on="speaker_id",
         how="outer",
     )
+    if syntax_path.is_file():
+        syntax = read(syntax_path)
+        frame = frame.merge(
+            syntax[["speaker_id", "mdd", "mhd", "speeches_parsed"]],
+            on="speaker_id",
+            how="left",
+        )
     frame = frame.merge(
         nodes[["node_id", "heckles_given", "targets", "hecklers"]].rename(
             columns={"node_id": "speaker_id"}
@@ -198,6 +222,16 @@ def build_topics(derived: Path, speeches: pd.DataFrame) -> list[dict]:
             "n_words": int(group["n_words"].sum()),
             "minutes": round(float(minutes), 1),
             "lix": round(float(prose["lix"].mean()), 2) if len(prose) else None,
+            "mdd": (
+                round(float(group["mdd"].mean()), 4)
+                if "mdd" in group and group["mdd"].notna().any()
+                else None
+            ),
+            "loanword_ratio": (
+                round(float(group["loanword_ratio"].mean()), 6)
+                if "loanword_ratio" in group and group["loanword_ratio"].notna().any()
+                else None
+            ),
             "mattr": round(float(prose["mattr"].mean()), 4) if len(prose) else None,
             "sentiment_valence": round(float(group["sentiment_valence"].mean()), 4),
             "emotion_anger": round(float(group["emotion_xlm_anger"].mean()), 4),

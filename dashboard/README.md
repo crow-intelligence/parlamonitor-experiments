@@ -75,6 +75,20 @@ values and re-run the validator if you have them.
 Dark mode is a selected set of steps against the dark surface, not an automatic
 flip, and it is validated separately.
 
+## Robustness the strips needed
+
+A percentile strip shows the whole population, so a single outlier squashes
+everyone else onto one edge. Two records did exactly that and both were the
+same artefact — the notary's roll-call, a list of names with no sentence
+punctuation. It scores LIX 594 and MHD 26.3 against corpus medians of 40 and
+2.4.
+
+The fix is upstream of the chart, not in it: `readability_reliable` flags the
+record for LIX, and the syntax metrics cap sentence length at 120 tokens. Both
+thresholds come from the measured distribution rather than taste — sentence
+length here is 15 tokens at the median, 102 at the 99.9th percentile, and that
+"sentence" is 517.
+
 ## Gotchas found while building this
 
 - **`d3.scaleLinear` cannot interpolate CSS `var()` strings** -- a scale given one
