@@ -1,5 +1,5 @@
-import Graph from "https://cdn.jsdelivr.net/npm/graphology@0.25.4/+esm";
-import forceAtlas2 from "https://cdn.jsdelivr.net/npm/graphology-layout-forceatlas2@0.10.1/+esm";
+import Graph from "./vendor/graphology.esm.js";
+import forceAtlas2 from "./vendor/forceatlas2.esm.js";
 
 /* Parlamonitor dashboard.
  *
@@ -163,6 +163,7 @@ function renderProfile() {
   ].map(([k, v, s]) => `<div class="kpi"><div class="k">${k}</div><div class="v">${v}</div><div class="s">${s}</div></div>`).join("");
 
   drawStrips(person, party);
+  renderVirtues();
   drawTopicMix(person);
 }
 
@@ -286,6 +287,152 @@ function drawTopicMix(person) {
       .style("font-variant-numeric", "tabular-nums")
       .text(`${fmt(row.share_of_speaker * 100, 0)}%`);
   });
+}
+
+
+/* ---------------------------------------------------------------- virtues */
+/* A polar chart, and the one place in this dashboard where it is the right
+ * form. The percentile strips refuse radar because their metrics are
+ * incommensurable — LIX runs 20-85, MATTR 0-1, valence -1..+1 — so a radar
+ * could only show them normalised, which hides the values. The six virtues are
+ * all one unit: mentions per 1,000 words. A single shared radial scale is
+ * therefore honest, six axes is a readable count, and the order is the
+ * classical one (four cardinals, then the two MacIntyrean).
+ *
+ * Two polygons, not one. A single "virtue score" would hide the stance, and
+ * the stance is the finding: 41% of truthfulness vocabulary in this chamber is
+ * accusation. Affirming and accusing are drawn separately and the chamber
+ * average sits behind both as a reference ring.
+ *
+ * Radar's real defect survives — area grows as the square of the radius, so a
+ * doubled value looks quadrupled — so every axis carries its value as text and
+ * the gridlines are labelled. Read the numbers, use the shape for orientation. */
+const VIRTUE_ORDER = [
+  "prudence", "justice", "courage", "temperance", "truthfulness", "magnanimity",
+];
+const VIRTUE_LABEL = {
+  prudence: "Okosság", justice: "Igazságosság", courage: "Bátorság",
+  temperance: "Mértékletesség", truthfulness: "Igazmondás",
+  magnanimity: "Nagylelkűség",
+};
+
+function virtuePeak(subjects) {
+  const total = (d, v) =>
+    (+(d?.[`virtue_${v}_affirming_rate`] ?? 0) || 0) +
+    (+(d?.[`virtue_${v}_accusing_rate`] ?? 0) || 0);
+  return d3.max(subjects.filter(Boolean).flatMap(d => VIRTUE_ORDER.map(v => total(d, v)))) || 1;
+}
+
+function drawVirtueRadar(host, subject, subjectName, reference, referenceName, sharedPeak) {
+  const W = 430, H = 380, cx = W / 2, cy = H / 2 + 6, R = 116;
+  const axes = VIRTUE_ORDER;
+  const value = (d, v, pole) =>
+    +(d?.[`virtue_${v}_${pole}_rate`] ?? 0) || 0;
+
+  // One scale for all six axes AND for both panels, because they share a unit.
+  // Rescaling per panel would make the MP and the faction look alike whatever
+  // their values — the whole point of putting them side by side is that the
+  // two shapes are measured against the same ruler.
+  const peak = sharedPeak || virtuePeak([subject, reference]);
+  const r = d3.scaleLinear().domain([0, peak]).range([0, R]).nice();
+  const angle = i => (i / axes.length) * 2 * Math.PI - Math.PI / 2;
+  const point = (i, val) => [cx + r(val) * Math.cos(angle(i)),
+                             cy + r(val) * Math.sin(angle(i))];
+
+  const svg = d3.select(host).html("").append("svg")
+    .attr("width", "100%").attr("height", H).attr("viewBox", [0, 0, W, H])
+    .attr("role", "img")
+    .attr("aria-label", `${subjectName} erényszókincse, említés per 1000 szó`);
+
+  const ticks = r.ticks(4).filter(t => t > 0);
+  ticks.forEach(t => {
+    svg.append("polygon")
+      .attr("points", axes.map((_, i) => point(i, t).join(",")).join(" "))
+      .attr("fill", "none").attr("stroke", "var(--grid)").attr("stroke-width", 1);
+    svg.append("text").attr("x", cx + 3).attr("y", cy - r(t) - 2)
+      .attr("fill", "var(--text-muted)").style("font-size", "9px").text(t);
+  });
+  axes.forEach((_, i) => {
+    const [x, y] = point(i, r.domain()[1]);
+    svg.append("line").attr("x1", cx).attr("y1", cy).attr("x2", x).attr("y2", y)
+      .attr("stroke", "var(--grid)").attr("stroke-width", 1);
+  });
+
+  // Chamber reference first, so the subject sits on top of it.
+  if (reference) {
+    svg.append("polygon")
+      .attr("points", axes.map((v, i) =>
+        point(i, value(reference, v, "affirming") + value(reference, v, "accusing"))
+          .join(",")).join(" "))
+      .attr("fill", "none").attr("stroke", "var(--text-muted)")
+      .attr("stroke-width", 1.5).attr("stroke-dasharray", "4 3");
+  }
+
+  const series = [
+    { pole: "accusing", colour: "var(--series-2)", label: "vádló" },
+    { pole: "affirming", colour: "var(--series-1)", label: "helyeslő" },
+  ];
+  series.forEach(({ pole, colour }) => {
+    svg.append("polygon")
+      .attr("points", axes.map((v, i) => point(i, value(subject, v, pole)).join(",")).join(" "))
+      .attr("fill", colour).attr("fill-opacity", .18)
+      .attr("stroke", colour).attr("stroke-width", 2).attr("stroke-linejoin", "round");
+    svg.selectAll(null).data(axes).join("circle")
+      .attr("cx", (v, i) => point(i, value(subject, v, pole))[0])
+      .attr("cy", (v, i) => point(i, value(subject, v, pole))[1])
+      .attr("r", 3.5).attr("fill", colour)
+      .attr("stroke", "var(--surface-1)").attr("stroke-width", 1.5);
+  });
+
+  // Axis names and values. Radar distorts magnitude, so the number is text.
+  axes.forEach((v, i) => {
+    const [lx, ly] = point(i, r.domain()[1] * 1.22);
+    const anchor = Math.abs(lx - cx) < 12 ? "middle" : lx > cx ? "start" : "end";
+    const total = value(subject, v, "affirming") + value(subject, v, "accusing");
+    const group = svg.append("g").style("cursor", "default")
+      .on("mousemove", e => showTip(
+        `<strong>${VIRTUE_LABEL[v]}</strong><br>` +
+        `${subjectName}: ${fmt(total, 2)} / 1000 szó<br>` +
+        `<span style="color:var(--series-1)">helyeslő ${fmt(value(subject, v, "affirming"), 2)}</span> · ` +
+        `<span style="color:var(--series-2)">vádló ${fmt(value(subject, v, "accusing"), 2)}</span>` +
+        (reference
+          ? `<br><span style="color:var(--text-muted)">${referenceName}: ` +
+            `${fmt(value(reference, v, "affirming") + value(reference, v, "accusing"), 2)}</span>`
+          : ""), e))
+      .on("mouseleave", hideTip);
+    group.append("text").attr("x", lx).attr("y", ly).attr("text-anchor", anchor)
+      .attr("fill", "var(--text-primary)").style("font-size", "11.5px")
+      .style("font-weight", "600").text(VIRTUE_LABEL[v]);
+    group.append("text").attr("x", lx).attr("y", ly + 12).attr("text-anchor", anchor)
+      .attr("fill", "var(--text-muted)").style("font-size", "10.5px")
+      .style("font-variant-numeric", "tabular-nums").text(fmt(total, 2));
+  });
+  return { peak };
+}
+
+function renderVirtues() {
+  const person = DATA.people.find(p => p.speaker_id === state.mp);
+  const party = DATA.parties.find(p => p.faction === (person || {}).faction);
+  const peak = virtuePeak([person, party, DATA.chamber]);
+  drawVirtueRadar("#virtue-radar-mp", person, (person || {}).speaker || "—",
+                  DATA.chamber, "a Ház átlaga", peak);
+  drawVirtueRadar("#virtue-radar-party", party, (party || {}).faction || "—",
+                  DATA.chamber, "a Ház átlaga", peak);
+
+  document.getElementById("virtue-legend").innerHTML =
+    `<span><i class="swatch" style="background:var(--series-1)"></i>helyeslő</span>` +
+    `<span><i class="swatch" style="background:var(--series-2)"></i>vádló</span>` +
+    `<span style="color:var(--text-muted)">szaggatott vonal: a Ház átlaga</span>` +
+    `<span style="color:var(--text-muted)">említés / 1000 szó</span>`;
+
+  const sparse = person && person.virtue_sparse;
+  document.getElementById("virtue-note").innerHTML = sparse
+    ? `<span class="warn">Ehhez a képviselőhöz kevés erényszó tartozik</span> ` +
+      `(${fmt(person.virtue_mentions, 0)} említés), így az alakzat keveset mond.`
+    : `A tengelyek ugyanazon a skálán állnak, mert azonos mértékegységűek: ` +
+      `említés 1000 szóra. A poláris ábra a sugárral arányosan növeli a ` +
+      `területet, ezért minden tengelyen ott a szám is — az alakzat tájékozódásra ` +
+      `való, az összehasonlítás a számokon múlik.`;
 }
 
 /* --------------------------------------------------------------- topics */

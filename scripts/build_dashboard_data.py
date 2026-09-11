@@ -122,9 +122,16 @@ def build_speeches(derived: Path) -> pd.DataFrame:
     virtue_speech = derived / "metrics" / "speech_virtues.csv"
     if virtue_speech.is_file():
         vs = read(virtue_speech)
-        columns = ["uid", "virtue_mentions", "virtue_sparse"] + [
-            f"virtue_{v}" for v in VIRTUES
-        ]
+        columns = (
+            ["uid", "virtue_mentions", "virtue_sparse", "virtue_tokens"]
+            + [f"virtue_{v}" for v in VIRTUES]
+            + [
+                f"virtue_{v}_{pole}"
+                for v in VIRTUES
+                for pole in ("affirming", "accusing")
+            ]
+        )
+
         frame = frame.merge(
             vs[[c for c in columns if c in vs.columns]], on="uid", how="left"
         )
@@ -186,13 +193,14 @@ def build_people(derived: Path, speeches: pd.DataFrame, min_speeches: int):
     if virtue_path.is_file():
         virtues = read(virtue_path)
         keep = (
-            ["speaker_id", "virtue_mentions", "virtue_sparse"]
-            + [
-                c
-                for c in virtues.columns
-                if c.startswith("virtue_") and c[7:] in VIRTUES
-            ]
+            ["speaker_id", "virtue_mentions", "virtue_sparse", "virtue_tokens"]
+            + [f"virtue_{v}" for v in VIRTUES]
             + [f"virtue_{v}_stance" for v in VIRTUES]
+            + [
+                f"virtue_{v}_{pole}"
+                for v in VIRTUES
+                for pole in ("affirming", "accusing")
+            ]
         )
         frame = frame.merge(
             virtues[[c for c in keep if c in virtues.columns]],
@@ -208,6 +216,18 @@ def build_people(derived: Path, speeches: pd.DataFrame, min_speeches: int):
     )
     for column in ("heckles_given", "targets", "hecklers"):
         frame[column] = frame[column].fillna(0).astype(int)
+
+    # Pole rates, per 1,000 tokens: what the radar plots. Derived here rather
+    # than in the browser so the denominator is stated once.
+    if "virtue_tokens" in frame:
+        tokens = frame["virtue_tokens"]
+        for virtue in VIRTUES:
+            for pole in ("affirming", "accusing"):
+                column = f"virtue_{virtue}_{pole}"
+                if column in frame:
+                    frame[f"{column}_rate"] = (
+                        frame[column] / tokens.where(tokens != 0) * 1000
+                    ).round(4)
 
     frame["below_min_speeches"] = frame["speeches"].fillna(0) < min_speeches
     # Most-used topic per speaker, for the profile header.
@@ -348,6 +368,30 @@ def build_topic_mp(speeches: pd.DataFrame, min_speeches: int = 2) -> list[dict]:
     return sorted(rows, key=lambda r: (r["topic"], -r["speeches"]))
 
 
+def virtue_totals(frame: pd.DataFrame) -> dict[str, float]:
+    """Pole rates per 1,000 tokens for one group of speeches.
+
+    Counts are summed and then divided, never averaged as rates: a
+    twenty-minute address should not weigh the same as a two-sentence
+    intervention.
+    """
+    tokens = float(frame["virtue_tokens"].sum()) if "virtue_tokens" in frame else 0.0
+    out: dict[str, float] = {"virtue_tokens": tokens}
+    for virtue in VIRTUES:
+        total = 0
+        for pole in ("affirming", "accusing"):
+            column = f"virtue_{virtue}_{pole}"
+            count = int(frame[column].sum()) if column in frame else 0
+            total += count
+            out[column] = count
+            out[f"{column}_rate"] = round(count / tokens * 1000, 4) if tokens else 0.0
+        out[f"virtue_{virtue}"] = round(total / tokens * 1000, 4) if tokens else 0.0
+        out[f"virtue_{virtue}_stance"] = (
+            round(out[f"virtue_{virtue}_affirming"] / total, 4) if total else None
+        )
+    return out
+
+
 def build_parties(people: pd.DataFrame, speeches: pd.DataFrame) -> list[dict]:
     """Party aggregates, weighted by words where a mean would mislead."""
     rows = []
@@ -372,6 +416,7 @@ def build_parties(people: pd.DataFrame, speeches: pd.DataFrame) -> list[dict]:
                     f"emotion_{name}": round(float(group[f"emotion_{name}"].mean()), 6)
                     for name in EKMAN
                 },
+                **virtue_totals(group),
             }
         )
     return sorted(rows, key=lambda r: -r["n_speeches"])
@@ -474,6 +519,7 @@ def main(argv: Sequence[str] | None = None) -> int:
         "parties": parties,
         "topics": topics,
         "topic_mp": topic_mp,
+        "chamber": virtue_totals(speeches),
         "distributions": distributions,
         "network": network,
         "speeches": json.loads(

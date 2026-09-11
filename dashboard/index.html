@@ -10,7 +10,7 @@
 <meta property="og:type" content="website">
 <meta property="og:image" content="assets/og.png">
 <meta name="theme-color" content="#7a1f1f">
-<script src="https://cdn.jsdelivr.net/npm/d3@7/dist/d3.min.js"></script>
+<script src="vendor/d3.v7.min.js"></script>
 
 <style>
 /* ---------------------------------------------------------------- palette
@@ -206,6 +206,16 @@ footer.about a { color: var(--crow); }
       sávokon az összes említés szerepel; hogy ebből mennyi helyeslő és
       mennyi vádló, azt az egérmutató mutatja meg.
     </p>
+
+    <div class="card" style="display:grid;grid-template-columns:1fr 1fr;gap:18px;margin-top:14px">
+      <div><h3 style="font-size:14px;margin:0 0 4px" id="virtue-mp-title">Képviselő</h3>
+        <div id="virtue-radar-mp"></div></div>
+      <div><h3 style="font-size:14px;margin:0 0 4px">Frakció</h3>
+        <div id="virtue-radar-party"></div></div>
+      <div style="grid-column:1/-1">
+        <div class="legend" id="virtue-legend"></div>
+        <p class="note" id="virtue-note"></p></div>
+    </div>
 
     <h2 style="margin-top:34px">Miről beszél?</h2>
     <p class="lede">

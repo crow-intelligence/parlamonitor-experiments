@@ -109,3 +109,34 @@ length here is 15 tokens at the median, 102 at the 99.9th percentile, and that
   entirely.** The attribute is set only by the toggle.
 - **Force-layout labels collide** in the centre of a hairball. Only the six
   heaviest nodes are labelled, with a surface-coloured halo under the text.
+
+## Deploying it elsewhere
+
+The directory is self-contained: copy `dashboard/` wherever it needs to live and
+it runs. There is no build step, no framework, and nothing is fetched from a CDN
+at runtime — d3, graphology and graphology-layout-forceatlas2 are vendored under
+`vendor/` with their licences in `vendor/LICENSES.md`.
+
+Two constraints survive:
+
+* **It must be served over HTTP**, not opened as a `file://` URL. `app.js` is an
+  ES module and the data arrives via `d3.json("data/dashboard.json")`; both are
+  blocked by the `file://` origin rules. Any static host works — GitHub Pages,
+  Netlify, an `nginx` alias. Locally, `python3 -m http.server` is enough.
+* **Copy the whole directory together.** Every path inside is relative
+  (`vendor/…`, `data/dashboard.json`), so the dashboard works at any URL prefix
+  — `/parlamonitor/`, `/aporia/parlament/`, the domain root — as long as the
+  four parts stay in the same folder.
+
+`data/dashboard.json` is 2.8 MB uncompressed and around 600 kB over gzip, which
+every static host applies by default. It is the only data file; nothing else is
+read at runtime.
+
+### Vendoring, if the libraries are ever re-pinned
+
+jsdelivr's `+esm` bundles carry absolute `/npm/...` imports for their peer
+dependencies, so downloading one file is not enough — an unrewritten bundle
+silently falls back to the network and the page works right up until the CDN
+doesn't. `vendor/LICENSES.md` records which transitive modules were resolved and
+rewritten to relative paths. Verify a re-pin by loading the page with the
+network blocked, not by reading the HTML.
