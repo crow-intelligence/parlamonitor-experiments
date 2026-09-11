@@ -42,6 +42,16 @@ ROOT = Path(__file__).resolve().parents[1]
 DERIVED = ROOT / "data" / "derived"
 DEFAULT_OUT = ROOT / "dashboard" / "data"
 
+EKMAN = ("anger", "disgust", "fear", "joy", "sadness", "surprise")
+VIRTUES = (
+    "prudence",
+    "justice",
+    "courage",
+    "temperance",
+    "truthfulness",
+    "magnanimity",
+)
+
 # The metrics shown as percentile strips, in display order. Each is (column,
 # whether higher is "more of the thing" for the axis direction).
 PROFILE_METRICS: tuple[tuple[str, str], ...] = (
@@ -58,13 +68,12 @@ PROFILE_METRICS: tuple[tuple[str, str], ...] = (
     ("emotion_joy", "emotion_joy"),
     ("emotion_sadness", "emotion_sadness"),
     ("emotion_surprise", "emotion_surprise"),
+    *[(f"virtue_{v}", f"virtue_{v}") for v in VIRTUES],
     ("laughter_per_minute", "laughter_per_minute"),
     ("applause_per_minute", "applause_per_minute"),
     ("heckles_received", "heckles_received"),
     ("heckles_given", "heckles_given"),
 )
-
-EKMAN = ("anger", "disgust", "fear", "joy", "sadness", "surprise")
 
 
 def parse_args(argv: Sequence[str] | None = None) -> argparse.Namespace:
@@ -110,6 +119,16 @@ def build_speeches(derived: Path) -> pd.DataFrame:
         frame["mdd"] = None
         frame["mhd"] = None
 
+    virtue_speech = derived / "metrics" / "speech_virtues.csv"
+    if virtue_speech.is_file():
+        vs = read(virtue_speech)
+        columns = ["uid", "virtue_mentions", "virtue_sparse"] + [
+            f"virtue_{v}" for v in VIRTUES
+        ]
+        frame = frame.merge(
+            vs[[c for c in columns if c in vs.columns]], on="uid", how="left"
+        )
+
     # Reaction counts per speech, pivoted from the long event table.
     reactions = read(derived / "reactions" / "speech_reactions.csv")
     exploded = reactions.assign(kind=reactions["kinds"].str.split(";")).explode("kind")
@@ -133,6 +152,7 @@ def build_people(derived: Path, speeches: pd.DataFrame, min_speeches: int):
     reactions = read(derived / "reactions" / "mp_reaction_scores.csv")
     nodes = read(derived / "reactions" / "heckle_nodes.csv")
     syntax_path = derived / "metrics" / "mp_syntax.csv"
+    virtue_path = derived / "metrics" / "mp_virtues.csv"
 
     # `speeches` and `words` appear in all three tables and do not mean the same
     # thing: mp_metrics counts only the records whose readability is usable, so
@@ -160,6 +180,22 @@ def build_people(derived: Path, speeches: pd.DataFrame, min_speeches: int):
         syntax = read(syntax_path)
         frame = frame.merge(
             syntax[["speaker_id", "mdd", "mhd", "speeches_parsed"]],
+            on="speaker_id",
+            how="left",
+        )
+    if virtue_path.is_file():
+        virtues = read(virtue_path)
+        keep = (
+            ["speaker_id", "virtue_mentions", "virtue_sparse"]
+            + [
+                c
+                for c in virtues.columns
+                if c.startswith("virtue_") and c[7:] in VIRTUES
+            ]
+            + [f"virtue_{v}_stance" for v in VIRTUES]
+        )
+        frame = frame.merge(
+            virtues[[c for c in keep if c in virtues.columns]],
             on="speaker_id",
             how="left",
         )
@@ -224,6 +260,14 @@ def build_topics(derived: Path, speeches: pd.DataFrame) -> list[dict]:
                 if "mdd" in group and group["mdd"].notna().any()
                 else None
             ),
+            **{
+                f"virtue_{v}": (
+                    round(float(group[f"virtue_{v}"].mean()), 4)
+                    if f"virtue_{v}" in group and group[f"virtue_{v}"].notna().any()
+                    else None
+                )
+                for v in VIRTUES
+            },
             "loanword_ratio": (
                 round(float(group["loanword_ratio"].mean()), 6)
                 if "loanword_ratio" in group and group["loanword_ratio"].notna().any()
@@ -419,6 +463,11 @@ def main(argv: Sequence[str] | None = None) -> int:
             "has one."
         ),
         "affect_method": "dictionary-based (Precognox sentiment; Putz Orsolya emotion)",
+        "virtue_construct": (
+            "salience — which moral vocabulary a speaker uses, NOT whether they "
+            "have the virtue. Every virtue carries an affirming/accusing stance "
+            "because 41% of truthfulness vocabulary here is accusation."
+        ),
         "emotion_scheme": list(EKMAN_NAMES),
         "min_speeches": args.min_speeches,
         "people": json.loads(people.to_json(orient="records")),

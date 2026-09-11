@@ -39,206 +39,23 @@ from pathlib import Path
 import pandas as pd
 
 from parlamonitor.lexicon import fold
+from parlamonitor.virtues import POLES, load_virtues
 
 ROOT = Path(__file__).resolve().parents[1]
 DEFAULT_OUTPUT_DIR = ROOT / "annotation" / "virtues"
 LEMMA_CACHE = ROOT / "data" / "derived" / "metrics" / "speech_lemmas.jsonl"
 
-# Six virtues: the four classical cardinals plus the two MacIntyrean
-# practice-virtues, matching data/virtues/lexicon.json in personalityPolitics.
-CANDIDATES: dict[str, list[str]] = {
-    "prudence": [
-        "bölcs",
-        "bölcsesség",
-        "okos",
-        "okosság",
-        "megfontolt",
-        "megfontoltság",
-        "megfontol",
-        "belátás",
-        "belát",
-        "előrelátás",
-        "előrelátó",
-        "józan",
-        "józanság",
-        "körültekintő",
-        "körültekintés",
-        "mérlegel",
-        "mérlegelés",
-        "észszerű",
-        "ésszerű",
-        "átgondolt",
-        "átgondol",
-        "meggondolt",
-        "meggondolatlan",
-        "higgadt",
-        "higgadtság",
-        "tapasztalt",
-        "szakszerű",
-    ],
-    "justice": [
-        "igazságos",
-        "igazságosság",
-        "igazságtalan",
-        "igazságtalanság",
-        "méltányos",
-        "méltányosság",
-        "jogos",
-        "jogosság",
-        "jogszerű",
-        "jogszerűség",
-        "jogtalan",
-        "egyenlő",
-        "egyenlőség",
-        "egyenlőtlenség",
-        "pártatlan",
-        "pártatlanság",
-        "elfogulatlan",
-        "elfogult",
-        "tisztesség",
-        "tisztességes",
-        "tisztességtelen",
-        "részrehajló",
-        "részrehajlás",
-        "arányos",
-        "arányosság",
-    ],
-    "courage": [
-        "bátor",
-        "bátorság",
-        "bátran",
-        "merész",
-        "merészség",
-        "hős",
-        "hősies",
-        "hősiesség",
-        "helytáll",
-        "helytállás",
-        "kiáll",
-        "elszánt",
-        "elszántság",
-        "rettenthetetlen",
-        "gyáva",
-        "gyávaság",
-        "megalkuvó",
-        "megalkuvás",
-        "kitart",
-        "kitartás",
-        "szilárd",
-        "eltökélt",
-        "eltökéltség",
-        "felvállal",
-    ],
-    "temperance": [
-        "mértékletes",
-        "mértékletesség",
-        "mérséklet",
-        "mérsékelt",
-        "önmérséklet",
-        "önuralom",
-        "önfegyelem",
-        "fegyelem",
-        "fegyelmezett",
-        "türelem",
-        "türelmes",
-        "türelmetlen",
-        "visszafogott",
-        "visszafogottság",
-        "szerény",
-        "szerénység",
-        "takarékos",
-        "takarékosság",
-        "arányérzék",
-    ],
-    "truthfulness": [
-        "igaz",
-        "igazmondás",
-        "igazmondó",
-        "őszinte",
-        "őszinteség",
-        "becsületes",
-        "becsület",
-        "becsületesség",
-        "hiteles",
-        "hitelesség",
-        "hazug",
-        "hazugság",
-        "hazudik",
-        "félrevezet",
-        "félrevezető",
-        "megtéveszt",
-        "megtévesztő",
-        "valótlan",
-        "valótlanság",
-        "nyílt",
-        "egyenes",
-        "átlátható",
-        "átláthatóság",
-        "titkol",
-        "eltitkol",
-        "elhallgat",
-    ],
-    "magnanimity": [
-        "nagylelkű",
-        "nagylelkűség",
-        "nemeslelkű",
-        "nemeslelkűség",
-        "nemes",
-        "nagyvonalú",
-        "nagyvonalúság",
-        "önzetlen",
-        "önzetlenség",
-        "önfeláldozó",
-        "áldozatkész",
-        "áldozatkészség",
-        "méltóság",
-        "méltó",
-        "emelkedett",
-        "bőkezű",
-        "adakozó",
-        "segítőkész",
-        "szolidaritás",
-        "szolidáris",
-        "kisstílű",
-        "kicsinyes",
-    ],
-}
+LEXICON = ROOT / "data" / "lexicons" / "virtues" / "hu_virtues.json"
 
-# Candidates I would reject on the corpus evidence, with the reason. They are
-# in the sheet anyway, pre-flagged: the verifier overrules me, not the reverse.
-FLAGGED: dict[str, str] = {
-    "igaz": (
-        "also a discourse particle ('az igaz, hogy'); at 295 hits it would "
-        "dominate truthfulness on its own"
-    ),
-    "méltóság": (
-        "'emberi méltóság' is a constitutional term, not the speaker's "
-        "greatness of soul"
-    ),
-    "méltó": "'méltó' is mostly 'worthy of' in a policy sense",
-    "kiáll": "polysemous: 'kiáll a pulpitushoz' is physically standing up",
-    "nemes": "often 'nemes cél', and a surname",
-    "szilárd": "a given name, and a physical sense",
-    "egyenes": "literal sense ('egyenes ág', 'egyenes arányban')",
-    "átlátható": "institutional transparency, arguably not a personal virtue",
-    "átláthatóság": "institutional transparency, arguably not a personal virtue",
-}
-
-# Hungarian collapses what English separates. Recorded so the verifier decides
-# rather than inherits my guess.
-NOTES = {
-    "igazság": (
-        "NOT proposed for either list. Hungarian 'igazság' means both truth "
-        "and justice; assigning it to one would be arbitrary and to both would "
-        "double-count. Its unambiguous derivatives are proposed instead."
-    ),
-}
+# Candidates come from the shipped lexicon, not a second copy: a pack that can
+# drift from what is actually scored is worse than no pack.
 
 
 def parse_args(argv: Sequence[str] | None = None) -> argparse.Namespace:
     parser = argparse.ArgumentParser(description=__doc__.splitlines()[0])
     parser.add_argument("--output-dir", type=Path, default=DEFAULT_OUTPUT_DIR)
     parser.add_argument("--lemma-cache", type=Path, default=LEMMA_CACHE)
+    parser.add_argument("--lexicon", type=Path, default=LEXICON)
     parser.add_argument(
         "--examples", type=int, default=3, help="KWIC lines per candidate"
     )
@@ -275,92 +92,102 @@ def main(argv: Sequence[str] | None = None) -> int:
     out.mkdir(parents=True, exist_ok=True)
     random.seed(args.seed)
 
-    wanted = {w for words in CANDIDATES.values() for w in words}
+    virtues = load_virtues(args.lexicon)
+    wanted = {
+        word
+        for virtue in virtues.values()
+        for pole in POLES
+        for word in getattr(virtue, pole).single
+    }
     freq, kwic = build_index(args.lemma_cache, wanted, args.window)
 
     rows = []
-    for virtue, words in CANDIDATES.items():
-        for word in words:
-            examples = kwic.get(word, [])
-            sample = random.sample(examples, min(args.examples, len(examples)))
-            rows.append(
-                {
-                    "virtue": virtue,
-                    "candidate": word,
-                    "corpus_frequency": freq.get(word, 0),
-                    "attested": freq.get(word, 0) > 0,
-                    "proposer_flag": FLAGGED.get(word, ""),
-                    "verdict": "",  # accept / reject / move:<virtue>
-                    "verifier_note": "",
-                    "example_1": sample[0] if len(sample) > 0 else "",
-                    "example_2": sample[1] if len(sample) > 1 else "",
-                    "example_3": sample[2] if len(sample) > 2 else "",
-                }
-            )
+    for key, virtue in virtues.items():
+        for pole in POLES:
+            for word in sorted(getattr(virtue, pole).single):
+                examples = kwic.get(word, [])
+                sample = random.sample(examples, min(args.examples, len(examples)))
+                rows.append(
+                    {
+                        "virtue": key,
+                        "pole": pole,
+                        "candidate": word,
+                        "corpus_frequency": freq.get(word, 0),
+                        "attested": freq.get(word, 0) > 0,
+                        "verdict": "",  # accept / reject / move:<virtue>.<pole>
+                        "verifier_note": "",
+                        "example_1": sample[0] if len(sample) > 0 else "",
+                        "example_2": sample[1] if len(sample) > 1 else "",
+                        "example_3": sample[2] if len(sample) > 2 else "",
+                    }
+                )
     frame = pd.DataFrame(rows)
     frame.to_csv(out / "virtue_candidates.csv", index=False, encoding="utf-8")
 
+    meta = json.loads(args.lexicon.read_text(encoding="utf-8"))["_meta"]
     lines = [
-        "# Hungarian virtue lexicon — candidates for verification",
+        "# Hungarian virtue lexicon — for verification",
         "",
-        f"Generated {datetime.now(UTC).date()} by `scripts/make_virtue_pack.py`.",
+        f"Generated {datetime.now(UTC).date()} from "
+        f"`{args.lexicon.relative_to(ROOT)}` by `scripts/make_virtue_pack.py`.",
         "",
-        "Six virtues: the four classical cardinals (Aristotle, *Nicomachean",
-        "Ethics*) plus two MacIntyrean practice-virtues, matching the English",
-        "lexicon in `personalityPolitics`.",
+        "## What is being measured",
         "",
-        "**Nothing here is decided.** Every candidate carries its corpus",
-        "frequency and real usage from the cycle-43 speeches. Fill the",
-        "`verdict` column in `virtue_candidates.csv` with `accept`, `reject`,",
-        "or `move:<virtue>`. Rows I would reject are pre-flagged with a reason;",
-        "the flag is a proposal, not a decision.",
+        f"**{meta['construct']}.**",
         "",
-        "Because matching is on **lemmas**, one entry covers every inflection:",
-        "`bátorság` catches *bátorságot, bátorságunk, bátorsággal*. The",
-        "Hungarian lists are therefore shorter than the English ones, not",
-        "longer.",
+        meta["what_this_measures"],
         "",
-        "## Known problems, for the verifier to rule on",
+        f"**Not measured:** {meta['what_this_does_not_measure']}",
         "",
-    ]
-    for word, note in NOTES.items():
-        lines += [f"**`{word}`** — {note}", ""]
-    lines += [
-        "The corpus also shows `tisztelt` 3,592 times, essentially all",
-        "salutation (*Tisztelt Ház!*). It is deliberately not proposed for",
-        "magnanimity. If honour-words are wanted there, the salutation must be",
-        "stripped first — `parlamonitor.text.strip_salutation` exists for it.",
+        meta["poles"],
         "",
-        "Strip the flagged terms from magnanimity and it retains roughly 60",
-        "hits across 12 words, which may be too thin to score. That megalopsychia",
-        "has little purchase in modern parliamentary Hungarian is itself a",
-        "finding, and better reported than papered over with a weak list.",
+        "## How to verify",
+        "",
+        "Fill the `verdict` column in `virtue_candidates.csv` with `accept`,",
+        "`reject`, or `move:<virtue>.<pole>`. Matching is on **lemmas**, so one",
+        "entry covers every inflection: `bátorság` catches *bátorságot,",
+        "bátorságunk, bátorsággal*.",
+        "",
+        "## Words already excluded, and why",
         "",
     ]
-    for virtue, words in CANDIDATES.items():
-        attested = [w for w in words if freq.get(w, 0) > 0]
-        total = sum(freq.get(w, 0) for w in words)
+    for word, reason in meta.get("abandoned", {}).items():
+        lines.append(f"- **`{word}`** — {reason}")
+    lines.append("")
+
+    for key, virtue in virtues.items():
+        total = sum(
+            freq.get(w, 0) for pole in POLES for w in getattr(virtue, pole).single
+        )
         lines += [
-            f"## {virtue} — {len(attested)}/{len(words)} attested, {total} hits",
+            f"## {virtue.label} — {virtue.label_hu}"
+            + (f" ({virtue.greek})" if virtue.greek else ""),
+            "",
+            f"*{virtue.gloss}*",
+            "",
+            f"{total} hits in the corpus.",
             "",
         ]
-        for word in sorted(words, key=lambda w: -freq.get(w, 0)):
-            n = freq.get(word, 0)
-            if not n:
-                lines.append(f"- **`{word}`** — not attested in the corpus")
-                continue
-            flag = f"  ⚠ {FLAGGED[word]}" if word in FLAGGED else ""
-            lines.append(f"- **`{word}`** ({n} hits){flag}")
-            for example in random.sample(
-                kwic[word], min(args.examples, len(kwic[word]))
-            ):
-                lines.append(f"  - …{example}…")
-        lines.append("")
+        if virtue.note:
+            lines += [f"> **Note.** {virtue.note}", ""]
+        for pole in POLES:
+            words = sorted(getattr(virtue, pole).single, key=lambda w: -freq.get(w, 0))
+            lines += [f"### {pole}", ""]
+            for word in words:
+                n = freq.get(word, 0)
+                if not n:
+                    lines.append(f"- **`{word}`** — not attested")
+                    continue
+                lines.append(f"- **`{word}`** ({n} hits)")
+                for example in random.sample(
+                    kwic[word], min(args.examples, len(kwic[word]))
+                ):
+                    lines.append(f"  - …{example}…")
+            lines.append("")
 
     (out / "virtue_pack.md").write_text("\n".join(lines) + "\n", encoding="utf-8")
-    print(f"{len(frame):,} candidates across {len(CANDIDATES)} virtues")
+    print(f"{len(frame):,} candidates across {len(virtues)} virtues")
     print(f"  attested: {int(frame['attested'].sum())}")
-    print(f"  pre-flagged for rejection: {int((frame['proposer_flag'] != '').sum())}")
     print(f"\nWrote {out}")
     return 0
 

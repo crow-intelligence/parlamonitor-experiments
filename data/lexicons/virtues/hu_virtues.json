@@ -1,0 +1,104 @@
+{
+  "_meta": {
+    "version": "0.1-draft",
+    "construct": "virtue SALIENCE, not virtue possession",
+    "framework": "Aristotle (Nicomachean Ethics) + MacIntyre, after data/virtues/lexicon.json in personalityPolitics",
+    "language": "hu",
+    "unit": "lemma — matching is against emtsv lemmas, so one entry covers every inflection",
+    "what_this_measures": "Which moral vocabulary a speaker reaches for. NOT whether they possess or cultivate the virtue, and NOT whether they are sincere. An MP who calls opponents liars is invoking truthfulness as a norm; an MP praising courage may be doing so ironically. Both count as engagement with the virtue, which is the construct.",
+    "what_this_does_not_measure": "Character. Sincerity. Whether the speaker exhibits the virtue. A speaker may attribute a virtue to themselves, deny it of an opponent, or use it sarcastically, and the counts cannot tell these apart.",
+    "poles": "Each virtue has an `affirming` and an `accusing` list. Both are salience; the split records the stance. Reporting one number would hide it — 60% of truthfulness vocabulary in this corpus is accusation.",
+    "abandoned": {
+      "igazság": "means both truth and justice in Hungarian; assigning it to one is arbitrary, to both is double-counting",
+      "igaz": "also a discourse particle ('az igaz, hogy'); 295 hits would swamp truthfulness",
+      "tisztelt": "3,592 hits, essentially all salutation ('Tisztelt Ház!')",
+      "méltóság": "'emberi méltóság' is a constitutional term",
+      "elismerés": "wage policy — 'erkölcsi és anyagi elismerés'",
+      "megbecsülés": "wage policy — 'anyagi megbecsülés és a magasabb bér'",
+      "hála": "mostly the fixed expression 'hála istennek'",
+      "nagyság": "usually magnitude — 'a feladat nagysága'",
+      "kiáll": "also physically standing up",
+      "fél": "also 'half' and 'the other party'"
+    },
+    "status": "DRAFT. Candidates were grounded in corpus usage and checked in context, but the list has not been verified by a second reader. See annotation/virtues/."
+  },
+
+  "prudence": {
+    "label": "Prudence",
+    "label_hu": "Okosság, megfontoltság",
+    "greek": "phronesis",
+    "gloss": "Practical wisdom — deliberation about what to do in particular circumstances.",
+    "affirming": ["bölcs", "bölcsesség", "megfontolt", "megfontol", "megfontoltság",
+      "körültekintő", "körültekintés", "mérlegel", "mérlegelés", "józan", "józanság",
+      "átgondolt", "átgondol", "belátás", "belát", "előrelátó", "előrelátás",
+      "higgadt", "higgadtság", "észszerű", "ésszerű", "szakszerű"],
+    "accusing": ["felelőtlen", "felelőtlenség", "meggondolatlan", "elhamarkodott",
+      "ostoba", "dilettáns", "szakszerűtlen", "átgondolatlan"]
+  },
+
+  "justice": {
+    "label": "Justice",
+    "label_hu": "Igazságosság",
+    "greek": "dikaiosyne",
+    "gloss": "Giving each their due — fairness, legality, equality before the law.",
+    "affirming": ["igazságos", "igazságosság", "méltányos", "méltányosság", "jogos",
+      "jogosság", "jogszerű", "jogszerűség", "pártatlan", "pártatlanság",
+      "elfogulatlan", "tisztesség", "tisztességes", "arányos", "arányosság",
+      "egyenlő", "egyenlőség"],
+    "accusing": ["igazságtalan", "igazságtalanság", "tisztességtelen", "jogtalan",
+      "részrehajló", "részrehajlás", "elfogult", "egyenlőtlenség"]
+  },
+
+  "courage": {
+    "label": "Courage",
+    "label_hu": "Bátorság",
+    "greek": "andreia",
+    "gloss": "Standing firm in the face of danger or difficulty — fortitude.",
+    "affirming": ["bátor", "bátorság", "merész", "merészség", "hős", "hősies",
+      "hősiesség", "helytáll", "helytállás", "kitart", "kitartás", "elszánt",
+      "elszántság", "eltökélt", "eltökéltség", "rettenthetetlen", "felvállal"],
+    "accusing": ["gyáva", "gyávaság", "megalkuvó", "megalkuvás", "meghunyászkodik"]
+  },
+
+  "temperance": {
+    "label": "Temperance",
+    "label_hu": "Mértékletesség, önmérséklet",
+    "greek": "sophrosyne",
+    "gloss": "Self-mastery — moderation of appetite, passion and impulse.",
+    "affirming": ["mértékletes", "mértékletesség", "mérséklet", "önmérséklet",
+      "önuralom", "önfegyelem", "fegyelem", "fegyelmezett", "türelem", "türelmes",
+      "visszafogott", "visszafogottság", "szerény", "szerénység", "takarékos",
+      "takarékosság"],
+    "accusing": ["türelmetlen", "mértéktelen", "pazarló", "pazarlás", "féktelen",
+      "gátlástalan", "szertelen"]
+  },
+
+  "truthfulness": {
+    "label": "Truthfulness",
+    "label_hu": "Igazmondás, őszinteség",
+    "greek": "aletheia",
+    "gloss": "Honesty with oneself and others — fidelity to what is actually the case.",
+    "note": "60% of this virtue's vocabulary in the corpus is the accusing pole. Reported as salience, that is meaningful: an accusation of lying invokes the norm. Reported as a single score it would be inverted, so it never is.",
+    "affirming": ["őszinte", "őszinteség", "becsületes", "becsület", "becsületesség",
+      "hiteles", "hitelesség", "igazmondás", "igazmondó", "nyílt", "átlátható",
+      "átláthatóság"],
+    "accusing": ["hazug", "hazugság", "hazudik", "valótlan", "valótlanság",
+      "megtéveszt", "megtévesztő", "félrevezet", "félrevezető", "titkol",
+      "eltitkol", "elhallgat"]
+  },
+
+  "magnanimity": {
+    "label": "Magnanimity",
+    "label_hu": "Nagylelkűség, közösségi elkötelezettség",
+    "greek": "megalopsychia",
+    "gloss": "Greatness of soul. In this corpus the classical sense barely occurs; what survives is gratitude, humility and public-spiritedness.",
+    "note": "The Aristotelian core is almost absent: 'nagylelkű' 2 hits, 'önzetlen' 1, and of the twelve affirming occurrences found in the first pass, one was sarcasm about politicians' pay. The category was rebuilt around the vocabulary the register actually has. It is therefore NOT megalopsychia and should not be reported as such.",
+    "affirming": ["nagylelkű", "nagylelkűség", "nagyvonalú", "nagyvonalúság",
+      "önzetlen", "önzetlenség", "önfeláldozó", "önfeláldozás", "áldozatkész",
+      "áldozatkészség", "alázat", "alázatos", "szolidaritás", "szolidáris",
+      "köszönet", "hálás", "közszolgálat", "közjó", "felelősségvállalás",
+      "emelkedett", "nemeslelkű", "nemeslelkűség"],
+    "accusing": ["kicsinyes", "kisstílű", "önzés", "önző", "kapzsi", "kapzsiság",
+      "haszonlesés", "önérdek"]
+  }
+}

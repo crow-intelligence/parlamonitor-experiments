@@ -33,6 +33,12 @@ const T = {
     emotion_surprise:     { hu: "Meglepődés",                hint: "találat / 1000 szó" },
     laughter_per_minute:  { hu: "Derültség / perc",          hint: "amit kiváltott" },
     applause_per_minute:  { hu: "Taps / perc",               hint: "amit kiváltott" },
+    virtue_prudence:      { hu: "Okosság, megfontoltság",    hint: "említés / 1000 szó" },
+    virtue_justice:       { hu: "Igazságosság",              hint: "említés / 1000 szó" },
+    virtue_courage:       { hu: "Bátorság",                  hint: "említés / 1000 szó" },
+    virtue_temperance:    { hu: "Mértékletesség",            hint: "említés / 1000 szó" },
+    virtue_truthfulness:  { hu: "Igazmondás",                hint: "említés / 1000 szó" },
+    virtue_magnanimity:   { hu: "Nagylelkűség",              hint: "hála, alázat, közösségi elköteleződés" },
     heckles_received:     { hu: "Kapott közbeszólás",        hint: "amit kapott, míg beszélt" },
     heckles_given:        { hu: "Adott közbeszólás",         hint: "amivel másokat szakított félbe" }
   },
@@ -219,8 +225,17 @@ function drawStrips(person, party) {
         .attr("fill", "var(--text-muted)").style("font-size", "10px")
         .text(`${pct}. percentilis`);
     }
+    const stancePct = key.startsWith("virtue_")
+      ? person[key + "_stance"] : null;
+    const stanceLine = (stancePct === null || stancePct === undefined
+        || Number.isNaN(stancePct))
+      ? ""
+      : `<br><span style="color:var(--text-muted)">ebből ` +
+        `${fmt(stancePct * 100, 0)}% helyeslő, ` +
+        `${fmt((1 - stancePct) * 100, 0)}% vádló</span>`;
     svg.on("mousemove", e => showTip(
       `<strong>${meta.hu}</strong><br>${person.speaker}: ${mine ? fmt(mine.v, 3) : "—"}` +
+      stanceLine +
       (pct !== null ? ` (${pct}. percentilis)` : "") +
       (median !== null ? `<br>${party} mediánja: ${fmt(median, 3)}` : "") +
       `<br><span style="color:var(--text-muted)">n = ${values.length} képviselő</span>`, e))
