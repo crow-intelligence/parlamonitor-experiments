@@ -45,6 +45,35 @@ corpus, and only 61% of speeches reach five hits. Emotion is therefore scored
 at MP and topic level by default; per-speech scores below the hit threshold are
 flagged rather than presented as solid.
 
+
+### Curation for this corpus
+
+The lists are built for general Hungarian; this corpus is parliamentary,
+and twenty entries mean something else here. They were removed from the
+**working copies** word by word, each checked against real usage — not by
+a frequency rule, which would have judged `fél` on being common rather
+than on being three words at once. The originals are kept beside them as
+`*.orig`; `scripts/curate_emotion_lexicons.py --restore` undoes it, and
+`emotion/curation.json` is the machine-readable record.
+
+| emotion | before | after | removed |
+|---|---:|---:|---|
+| anger | 411 | 408 | `félreértés`, `húz`, `vita` |
+| disgust | 136 | 135 | `rossz` |
+| fear | 244 | 242 | `fél`, `kegyelem` |
+| joy | 676 | 667 | `emberi`, `jó`, `kedves`, `nyer`, `segít`, `szabadság`, `szíves`, `tisztességes`, `támogatás` |
+| sadness | 388 | 385 | `elfogadás`, `negatív`, `szegény` |
+| surprise | 98 | 96 | `rendkívüli`, `véletlen` |
+
+The reason for each is in `curation.json`. The clearest cases: `vita` is
+the name of a procedure (785 hits), `elfogadás` is adopting a bill (186),
+`kedves` is the salutation (409), and `fél` is 'fears', 'half' and 'the
+other party' at once — one sentence in the corpus uses two of those senses.
+
+Unfiltered, `jó`, `támogatás`, `kedves` and `segít` made joy the dominant
+emotion in 62% of speeches. After curation it is 45%, and a frequency cut
+at the top 1% now removes nothing at all.
+
 ## Sentiment — Precognox
 
 Hungarian Sentiment Lexicon, Precognox (`labs@precognox.com`), from

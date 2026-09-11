@@ -507,27 +507,23 @@ def score_emotion(
     )
 
 
-DEFAULT_REGISTER_PERCENTILE = 1.0
-"""Lexicon entries in this top share of corpus frequency are dropped.
+DEFAULT_REGISTER_PERCENTILE = 0.0
+"""Frequency-based register filter. **Off by default, and superseded.**
 
-**This changes every emotion number, and it is a judgement.** The reasoning is
-the one the loanword study used: a word the corpus leans on this heavily is
-register vocabulary, not a marker of anything.
+It existed because the lists are built for general Hungarian while this corpus
+is parliamentary: ``jó``, ``támogatás``, ``kedves`` and ``segít`` in the joy
+list, ``vita`` in the anger list, between them made joy the dominant emotion in
+62% of speeches.
 
-The lists were built for general Hungarian; this corpus is parliamentary. Six
-words did almost all the damage. ``jó`` (1,741 hits), ``támogatás`` (611),
-``kedves`` (409 — the salutation *Kedves Képviselőtársaim*) and ``segít`` (393)
-are in the joy list and are ordinary policy vocabulary here; ``vita`` (785) is
-in the anger list and simply means *debate*. Unfiltered, joy was the dominant
-emotion in 62% of speeches.
+Those entries have since been removed from the working copies of the
+dictionaries by ``scripts/curate_emotion_lexicons.py``, word by word and with a
+reason recorded for each — a better instrument than a frequency cut, because it
+judges ``fél`` on being three words at once rather than on being common. With
+the curated lists a 1% cut now removes nothing at all.
 
-1.0 was chosen by measuring, not by taste. At 0.5% three of the four joy
-offenders survive. At 2% the filter starts removing genuine markers — ``örül``,
-``sajnos`` — which is the opposite failure. At 1% exactly five entries go,
-across all six categories, and every one is demonstrably register vocabulary.
-
-Set to 0 to disable. The dropped entries are always reported, never silently
-absorbed.
+The mechanism is kept for a changed or uncurated list, but the default is 0 so
+that there is exactly one place where entries are excluded: the dictionary and
+its recorded curation, not a second filter behind it.
 """
 
 

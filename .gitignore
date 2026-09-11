@@ -23,6 +23,7 @@ exports/
 # but using a file is not the same as mirroring it into a public repository.
 # The provenance record in data/lexicons/README.md is committed in their place.
 data/lexicons/**/*.txt
+data/lexicons/**/*.orig
 
 # The dashboard's data bundle is derived from data/derived and rebuilt in a
 # second by scripts/build_dashboard_data.py. The page that reads it is in git.
