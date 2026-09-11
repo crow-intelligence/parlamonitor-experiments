@@ -10,9 +10,10 @@ produces a changed hash rather than a silently different number.
 
 ## Emotion — Putz Orsolya
 
-**Ongoing work by Putz Orsolya, used here with permission. Not redistributable:
-do not commit, publish or pass on these files.** Any output derived from them
-must credit her.
+**Putz Orsolya's own collection**, ongoing work, used here with permission.
+**Not redistributable: do not commit, publish or pass on these files.** Any
+output derived from them must credit her by name as the author of the
+collection.
 
 Eight categories are supplied. This project uses the **six Ekman basic
 emotions** and leaves the other two aside: `feszültség` (tension) and
@@ -67,10 +68,14 @@ Privative forms are already lexicalised (`haszontalan`, `tehetetlen`,
 morphological rule. What remains for negation is `nem`, `sem`, `se`, `nincs`,
 `sincs`, `nélkül`.
 
-**Licence: unresolved.** The opendata.hu dataset listing says CC BY-SA; the
-dataset page itself says CC BY-NC 4.0 and names Zoltan Varju as maintainer.
-Gitignored until that is settled, since NC and SA imply different things for a
-CC BY-NC-SA dashboard.
+**Licence: CC BY-NC 4.0** — the dataset page is authoritative; the listing
+page's "CC BY-SA" is wrong. Confirmed with the maintainer. **This project's use
+is non-commercial**, which the licence permits, and the dashboard ships under
+CC BY-NC-SA 4.0, so the NC term carries through. Attribution: Precognox.
+
+Still gitignored, because "we may use it" is not "we may redistribute it": the
+licence allows non-commercial use, and mirroring the files into a public
+repository is a separate act from using them.
 
 ## Loanwords — not here
 
