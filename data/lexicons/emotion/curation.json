@@ -1,0 +1,75 @@
+{
+  "curated_at": "2026-09-11T09:47:10.514861+00:00",
+  "source": "Putz Orsolya's collection (unmodified originals kept as *.orig)",
+  "rationale": "The lists are built for general Hungarian; this corpus is parliamentary. Every removal was checked against usage in the corpus, not chosen by frequency.",
+  "removed": {
+    "anger": {
+      "file": "emo_duh_full.txt",
+      "before": 411,
+      "after": 408,
+      "dropped": {
+        "félreértés": "a misunderstanding is not an emotion",
+        "húz": "literal: 'magával húzni', 'munkásszállókat húztak fel'",
+        "vita": "the name of the procedure — 'általános vita', 785 hits"
+      },
+      "not_found": []
+    },
+    "disgust": {
+      "file": "emo_undor_full.txt",
+      "before": 136,
+      "after": 135,
+      "dropped": {
+        "rossz": "ordinary evaluative adjective, 242 hits"
+      },
+      "not_found": []
+    },
+    "fear": {
+      "file": "emo_felelem_full.txt",
+      "before": 244,
+      "after": 242,
+      "dropped": {
+        "fél": "three words at once: 'fears', 'half' ('fél ország') and 'party' ('a másik fél'). One sentence in the corpus uses two of them",
+        "kegyelem": "legal: 'kegyelmi kérvény', not fear"
+      },
+      "not_found": []
+    },
+    "joy": {
+      "file": "emo_orom_full.txt",
+      "before": 676,
+      "after": 667,
+      "dropped": {
+        "emberi": "'emberi jogok', 'emberi méltóság'",
+        "jó": "ordinary evaluative adjective, 1,741 hits",
+        "kedves": "the salutation 'Kedves Képviselőtársaim', 409 hits",
+        "nyer": "mostly the formal 'megerősítést nyert', and 'választást nyerni'",
+        "segít": "policy verb, 393 hits",
+        "szabadság": "political abstraction, and also 'holiday'",
+        "szíves": "the formula 'szíves tájékoztatás'",
+        "tisztességes": "fairness rather than joy; belongs to justice if anywhere",
+        "támogatás": "policy noun — a subsidy, 611 hits"
+      },
+      "not_found": []
+    },
+    "sadness": {
+      "file": "emo_banat_full.txt",
+      "before": 388,
+      "after": 385,
+      "dropped": {
+        "elfogadás": "adopting a bill — pure procedure, 186 hits",
+        "negatív": "technical usage",
+        "szegény": "poverty as an economic category, not pity"
+      },
+      "not_found": []
+    },
+    "surprise": {
+      "file": "emo_meglepodes_full.txt",
+      "before": 98,
+      "after": 96,
+      "dropped": {
+        "rendkívüli": "'rendkívüli ülés', 'rendkívüli jogrend' — administrative",
+        "véletlen": "mostly the rhetorical 'nem véletlen, hogy'"
+      },
+      "not_found": []
+    }
+  }
+}

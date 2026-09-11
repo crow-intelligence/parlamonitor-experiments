@@ -16,7 +16,7 @@ dependencies = [
     # Crow packages, from PyPI. saphes and keyflux are the two that map
     # directly onto this data; kenon and lexograph are here because trying
     # them on it is the point of the workspace.
-    "saphes>=0.1",
+    "saphes>=0.2.1",
     "keyflux>=0.2",
     "kenon>=0.1.2",
     "lexograph>=0.1",
@@ -27,6 +27,11 @@ dependencies = [
     # Python 3.10 and the resolution fails outright.
     "numpy>=1.26,<2.5",
     "matplotlib>=3.8",
+    # Imported directly by parlamonitor.interactions for the heckling network.
+    # It arrives transitively through kenon, but a direct import deserves a
+    # direct declaration.
+    "networkx>=3.0",
+    "huspacy>=0.12.1",
 ]
 
 [project.optional-dependencies]
@@ -44,6 +49,16 @@ topics = [
     "gensim>=4.3.3",
     "scikit-learn>=1.4",
     "requests>=2.31",
+]
+# Tasks 5-6: readability, affect and keyword extraction over the speeches.
+# Out of the base install for the same reason as `topics`: keybert reaches
+# sentence-transformers and transformers reaches torch, which together are
+# larger than everything else here put together. saphes itself is in the core.
+metrics = [
+    "keybert>=0.9",
+    "sentence-transformers>=3.0",
+    "transformers>=4.40",
+    "torch>=2.0",
 ]
 dev = [
     "pytest>=8",

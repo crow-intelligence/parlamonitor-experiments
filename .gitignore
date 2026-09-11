@@ -7,10 +7,27 @@ papers/
 # the provenance record and they are small.
 data/raw/*.jsonl
 
+# The parentheticals exports, same policy: 12 MB of raw text, regenerable, and
+# the provenance that matters (sha256 per file, line and word counts) is
+# recorded in data/derived/parentheticals/manifest.json instead.
+data/raw/parantheticals/
+
 # Derived data is rebuildable; anything hand-verified belongs in git, so add
 # an exception for it rather than widening this.
 data/derived/
 exports/
+
+# Lexicons. Putz Orsolya's emotion collection is her ongoing work, used with
+# permission and explicitly not redistributable. The Precognox sentiment
+# lexicon is CC BY-NC 4.0: this project's use is non-commercial and permitted,
+# but using a file is not the same as mirroring it into a public repository.
+# The provenance record in data/lexicons/README.md is committed in their place.
+data/lexicons/**/*.txt
+data/lexicons/**/*.orig
+
+# The dashboard's data bundle is derived from data/derived and rebuilt in a
+# second by scripts/build_dashboard_data.py. The page that reads it is in git.
+dashboard/data/
 
 # Python-generated files
 __pycache__/

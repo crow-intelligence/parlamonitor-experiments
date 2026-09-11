@@ -29,6 +29,14 @@ editable, which is what lets the loaders find `data/raw/` by repository layout.
 | `cycle43-qa.jsonl` | 215 question-answer exchanges (202 with text on both sides) | no |
 | `cycle43-manifest.json` | row counts and what was filtered out | yes |
 | `README.md` | field-by-field schema and normalisation rules | yes |
+| `parantheticals/cycle{39..43}-parentheticals.txt` | 261,935 note-taker stage directions across five cycles | no |
+
+The `parantheticals/` files (the directory is spelled as the export spells it)
+are a different register from the speeches: one bracketed remark per line, no
+metadata column of any kind, a mean of 6.1 words per line. They are the
+editorial stage directions that `text_clean` strips out of the speeches —
+applause, heckling, the chair's bell — collected instead of discarded. Task 3
+counts them.
 
 Rebuild them from the application:
 
@@ -208,6 +216,195 @@ candidate analysis of every token and dwarfs the rest;
 | `fit_transform(phrased_speeches)` | Same documents for c-TF-IDF, but embeddings computed from `text_clean` | huBERT reads Hungarian, not lemma bags; topic *words* still come from the phrased text as specified |
 | — | Chunk each speech into 80-word windows and mean-pool | the model ships `max_seq_length=128` (~65–85 Hungarian words) against a 307-word median speech |
 | — | Content-word POS filter; seeded UMAP | tag filtering beats frequency thresholds, and unseeded UMAP makes runs unreproducible |
+
+## Task 3 — parentheticals: lemmatised frequencies with fused n-grams
+
+```bash
+docker run --rm -d --name emtsv -p 5000:5000 mtaril/emtsv
+uv run python scripts/parentheticals_freq.py --limit 2000   # smoke run
+uv run python scripts/parentheticals_freq.py                # full corpus
+```
+
+Writes to `data/derived/parentheticals/`: `token_frequencies.csv` (one row per
+cycle and token, plus `ALL` rows), a wide pivot of the same, an n-gram table,
+per-cycle line statistics, the fitted phrase model, and a `manifest.json`.
+**`REPORT.md` in that directory is the analysis**; what follows is how it is
+built.
+
+Every distinct line goes through emtsv **once** and is cached to
+`lemma_cache.jsonl` — 63,849 of the 261,935 lines are distinct, so this is a
+4× saving, and it makes a re-run with different thresholds take a minute rather
+than half an hour. Lines are batched ~250 at a time and mapped back onto their
+inputs using the newlines `tok` records in `wsafter`; a batch that will not
+reconstruct its own request body is re-sent one line at a time rather than
+trusted.
+
+Significant bigrams and trigrams are fused into single `#`-joined tokens
+(`taps#a#kormánypárt#sor`) by two Gensim passes scored with NPMI, fitted once on
+all five cycles pooled so the per-cycle columns stay comparable.
+
+### Decisions that change the numbers
+
+| decision | default | flag |
+| --- | --- | --- |
+| Duplicate lines | counted both as-is and with consecutive runs collapsed, side by side | — |
+| N-gram score | NPMI, threshold 0.5, `min_count` 5, two passes | `--scoring`, `--threshold`, `--min-count`, `--no-trigrams` |
+| Connector words | articles and conjunctions may sit inside a phrase, not at its edge | `--no-connector-words` |
+| Party names | `Jobbik`, `Momentum`, `Párbeszéd`, `Együtt` repaired — emMorph reads `Jobbik` as *jobbik* and lemmatises it to `jó` | `--no-proper-noun-repair` |
+| Soft hyphens | stripped; emtsv turns U+00AD into U+FFFD and splits the word | — |
+| Punctuation | dropped before detection and counting | — |
+
+21% of cycle 41's lines repeat the line before them, against 5–8% elsewhere, and
+collapsing removes 93% of `Bóna#Zolta#jelzés` and 47% of `folyamatos#sípolás`.
+Prefer `raw_collapsed` when comparing cycle 41 with the others; `REPORT.md`
+argues the case.
+
+## Task 4 — reaction scores: laughter, applause, heckling
+
+```bash
+uv run python scripts/reaction_scores.py
+```
+
+Writes to `data/derived/reactions/`; **`REPORT.md` there is the analysis.**
+Classifies 233,584 reaction events across cycles 39–43 by kind (applause,
+laughter, heckling, whistling, noise, uproar, booing, the chair's bell),
+intensity (`szórványos` → `felállva tapsolnak`) and which benches responded.
+
+Attribution is limited by what the exports carry, so the tables split three ways:
+
+| table | scope | why |
+| --- | --- | --- |
+| reaction events and summary | cycles 39–43 | the parentheticals say who *reacted* |
+| `heckler_scores.csv` — 703 named interjectors | cycles 39–43 | the heckler's name is inside the parenthetical: `Vadai Ágnes: Nem hallom!` |
+| `mp_reaction_scores.csv` | **cycle 43 only** | linking a reaction to the MP who caused it needs the speech around it, and only cycle 43 has a speeches export |
+
+**The attribution rule:** a reaction is credited to whoever held the floor when
+it was recorded. Right for applause and laughter, wrong for a heckle — so
+heckles go to their named interjector and appear on the speaker's row only as
+`heckles_received`.
+
+MP scores come in four normalisations side by side (raw, per speech, per 1,000
+words, per minute of floor time) because they rank people differently, and are
+split by whether the reaction came from the speaker's **own** benches or the
+**other** side. That split is the point: in cycle 43 every opposition MP in the
+laughter top five draws most of their laughter from the government benches,
+which is derision rather than wit. `derültség` records amusement, not humour.
+
+Government/opposition flips between cycles — Fidesz–KDNP in 39–42, TISZA in 43
+— so it is an explicit per-cycle mapping in `reactions.GOVERNING_PARTIES`,
+derived for cycle 43 from the export's own ministerial offices rather than
+assumed.
+
+### Who heckled whom — the directed network
+
+```bash
+uv run python scripts/heckle_network.py
+```
+
+An edge runs from the interjector named inside a parenthetical to whoever held
+the floor. Cycle 43: 916 named interjections, 913 (99.7%) resolved to a known
+speaker, 103 nodes, 294 edges, no self-loops. Both ends carry a faction, so the
+graph rolls up to party or to government/opposition.
+
+`data/derived/reactions/NETWORK.md` documents the outputs and the d3 contract.
+The short version: `heckle_edges.csv` is the atomic record, and
+`heckle_network.json` is written with `edges="links"` because networkx 3.6
+defaults that key to `"edges"`, which `d3.forceSimulation` does not read. Party-
+and side-level roll-ups ship as their own node-link files; GraphML is there for
+Gephi.
+
+Heckling is overwhelmingly cross-bench: 804 of the 913 interruptions where both
+sides are known go from one side of the house to the other. Two limits are
+structural — the network is cycle 43 only, because an edge needs a floor-holder
+and that is the only cycle with a speeches export; and 41% of that cycle's named
+interjections happen outside any speech (voting, procedure, the opening
+ceremony), so they have no target and are not in the graph.
+
+## Task 5 — readability, affect and keywords
+
+```bash
+uv sync --extra metrics
+docker run --rm -d --name emtsv -p 5000:5000 mtaril/emtsv
+uv run python scripts/speech_metrics.py    # readability, diversity, keywords
+uv run python scripts/speech_affect.py     # sentiment, emotion
+uv run python scripts/validate_affect.py   # does the affect actually work?
+```
+
+`data/derived/metrics/REPORT.md` is the analysis. 1,693 cycle-43 speeches.
+
+**Syntactic complexity** via `saphes`: mean dependency distance (MDD) and mean
+hierarchical distance (MHD), Jing & Liu (2015). These need a *parse*, and the
+parser is **HuSpaCy** (`hu_core_news_md`), not emtsv — emtsv can parse, but its
+cost grows super-linearly with document length (80 words in 0.4 s, 633 in 14 s,
+a 3,000-word request not returning inside 100 s), which on this corpus is hours.
+HuSpaCy runs in-process at ~2,000 words/s, linearly, so the corpus takes ~7
+minutes and the 5,281-word longest speech needs no chunking.
+
+MDD and MHD correlate at only 0.56, which is why the pair is reported rather
+than either alone. **The parser is part of the measurement** — head conventions
+decide every distance — so `parser` is recorded on every result, and a HuSpaCy
+MDD must not be compared with an emtsv one.
+
+**Loanword ratio** (*idegenszó-arány*) via `saphes`, against a 15,203-lemma list
+verified against Bakos Ferenc's dictionary. The lexicon is a required argument
+with no default — saphes ships none, deliberately — so it is read by path from
+the sibling `saphes` checkout and recorded by hash, not copied into this repo.
+Two properties shape the number: the list drops the top 2% by corpus frequency
+as ordinary vocabulary, so this measures *uncommon* foreign words; and proper
+nouns are excluded via a capitalisation proxy on emtsv lemmas, without which
+every foreign surname would count.
+
+**Readability** via `saphes`, with three non-default choices: the long-word
+threshold is **8** (`recommended_threshold("hu")`, not LIX's Swedish 6), length
+is counted in **letters** not characters (`asszony` is 7 characters but 5
+letters), and sentences come from **emtsv** rather than a punctuation regex.
+LIX mean 39.7 at 17.2 words per sentence. Two `jegyzői ismertetés` records —
+the notary's roll-call, 590 words with no full stop, LIX 594 — are flagged
+`readability_reliable = false` and excluded from per-MP means.
+
+**Keywords**, two methods: TextRank over a co-occurrence graph of content
+lemmas (networkx, no model), and KeyBERT over huBERT embeddings. KeyBERT's
+candidates come from the lemma stream, so a returned bigram is two content
+words adjacent after function words were dropped — themes, not quotations.
+
+**Sentiment and emotion** from three models, **none of which declares its
+labels**. The script therefore calibrates before it scores, deriving the
+index-to-label mapping from probes of known valence and writing the confusion
+matrix into the manifest.
+
+Probes turned out to be a weak test in both directions, so reliability is
+decided on the corpus by `validate_affect.py`, which checks valence agreement,
+cross-model agreement and saturation. It flags **`emotion_hu_fear`**
+(mean 0.64, r = −0.04 with valence — saturated and signal-free) and
+**`emotion_hu_sadness`** (r = **+0.11**, the wrong sign). Use the
+`emotion_xlm_*` columns. Sentiment itself tracks the aisle cleanly: valence
+runs +0.083 for TISZA (government) down to −0.095 for Mi Hazánk.
+
+**Big Five is deliberately absent.** No Hungarian model exists, and the cached
+`Minej/bert-base-personality` is English-only on `bert-base-uncased`. See
+`CHANGES_SUMMARY.md`.
+
+## The dashboard
+
+```bash
+uv run python scripts/build_dashboard_data.py
+python3 -m http.server 8765 --directory dashboard
+```
+
+Static page, four views: an MP/party profile, a topic x metric heatmap, the
+interruption network, and a filterable table of all 1,693 speeches.
+`dashboard/README.md` covers the form and colour decisions; the short version:
+
+**No radar chart.** Radar encodes magnitude as radius, so area grows as the
+square and a 2x score reads as 4x, and its axis order is arbitrary. The profile
+view uses percentile strips instead - every eligible MP as a faint dot, the
+selected one filled, the party median as a tick - because "is this MP unusual"
+is a comparison against a population, so the population is drawn.
+
+The categorical palette is validated for both light and dark
+(`validate_palette.js`, all checks pass). It is deliberately **not** party brand
+colours: those hex values are not reliably known here, and a wrong one in a
+political dashboard is a factual error rather than a styling choice.
 
 ## Development
 

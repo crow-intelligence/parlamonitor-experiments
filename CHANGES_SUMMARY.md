@@ -134,3 +134,323 @@ inferred.
 | Topics | 30 | 28 |
 | Boilerplate topic | 66 speeches | gone (37 residual, topic 12) |
 | Light verbs in labels | `tud`, `mond`, `kell`, `beszél` | none |
+
+---
+
+# Task 3 — parentheticals: lemmatised frequencies with fused n-grams
+
+Branch `feat/parentheticals-frequency`. A frequency analysis of the 261,935
+note-taker stage directions in `data/raw/parantheticals/`, cycles 39–43:
+lemmatised with emtsv, significant bigrams and trigrams fused into single
+`#`-joined tokens, counted per cycle and pooled, raw and relative.
+
+The analysis itself is `data/derived/parentheticals/REPORT.md`. What follows is
+what the code does and what a human still has to decide.
+
+**New:** `src/parlamonitor/parentheticals.py` (loading, duplicate collapsing,
+line statistics), `src/parlamonitor/frequency.py` (counting, tidy frames,
+NPMI), `src/parlamonitor/propernouns.py` (party-name repair),
+`scripts/parentheticals_freq.py`, plus three test modules.
+
+**Changed, backwards-compatibly:** `emtsv.py` gains sentence-aware parsing and
+batched line-aligned analysis (`Token` gains a defaulted `wsafter`; `parse_tsv`
+is now a flattening of `parse_tsv_sentences`, same signature and behaviour).
+`topics.py`'s `build_phrases` gains `scoring`, `delimiter` and
+`connector_words`, all defaulting to today's behaviour — `make verify-model`
+confirms the pinned topic model fingerprint is unchanged.
+
+## What needs a human call (Task 3)
+
+1. **Is the duplication real?** 21.1% of cycle 41's lines repeat the line before
+   them, against 5–8% elsewhere. Collapsing consecutive runs removes 93% of
+   `Bóna#Zolta#jelzés` (8,721 → 611) and 47% of `folyamatos#sípolás`
+   (19,961 → 10,633). A procedural cue is not plausibly issued 8,721 times with
+   93% of them back to back, so at least part of this is an extraction artifact
+   — but it cannot be settled from these files, which carry no sitting, date or
+   speech identifier to check against. Both readings are in every CSV
+   (`raw` and `raw_collapsed`); **nothing was silently chosen.** Resolving it
+   properly means re-exporting the parentheticals with a sitting identifier.
+
+2. **Party-name repair is a four-entry list, not a gazetteer.** emMorph reads
+   `Jobbik` as the comparative adjective *jobbik* and lemmatises it to `jó`,
+   20,705 times. Four names are repaired; MP surnames that are also common
+   words are not (`Bősz` → `bősz`, `Heringes` → `heringes`, `Borbély` →
+   `borbély`). The counts are correct either way — the token is still one unit
+   — but the display forms are wrong, and fixing them means sourcing a list of
+   ~200 sitting MPs. Whether that is worth doing is a call about what the
+   output is for.
+
+3. **`Mi Hazánk` is not repaired.** It needs a rule spanning two tokens, which
+   the form-keyed override cannot express. It surfaces as `mi#haza`.
+
+## Decisions that change the numbers (Task 3)
+
+All are parameters, all defaulted deliberately, all in
+`data/derived/parentheticals/manifest.json`.
+
+| decision | default | flag |
+| --- | --- | --- |
+| N-gram score | NPMI, threshold 0.5, `min_count` 5, two passes | `--scoring`, `--threshold`, `--min-count`, `--no-trigrams` |
+| Phrase model scope | fitted once on all cycles pooled, as-is view | — |
+| Connector words | articles/conjunctions inside a phrase but not at its edge | `--no-connector-words` |
+| Proper-noun repair | on, four capitalised forms, 22,634 tokens | `--no-proper-noun-repair` |
+| Soft hyphens | stripped (1,255, all cycle 40) | — |
+| Punctuation | dropped before detection and counting (503,112 tokens) | — |
+| Case | preserved as emtsv produced it | — |
+
+NPMI rather than Gensim's default scorer because it is bounded in [-1, 1] and
+so means the same on cycle 43 (23,007 tokens) as on cycle 41 (330,888); the
+default scorer scales with vocabulary size and is not comparable across them.
+
+## Where the toolchain did not hold
+
+- **Gensim's NPMI scores leave [-1, 1] on the second pass** — 621 of 3,524 —
+  because pass 2 scores against a corpus pass 1 has already fused. The n-gram
+  table carries an `npmi` column recomputed from the unfused counts, with the
+  component counts beside it, and keeps `gensim_score` only to show what the
+  detector saw.
+- **emtsv converts U+00AD to U+FFFD and tokenises around it**, so
+  `hát<shy>oldalán` came back as `hát`, `<?>`, `oldalán`. Found because the
+  batch reconstruction check failed on those lines. Stripping the soft hyphen
+  is lossless and removed 357 spurious types from cycle 40.
+- **Batching is only sound if it can be verified.** Responses are mapped back
+  onto input lines via the newlines `tok` records in `wsafter`, and a batch
+  that will not reconstruct its own request body character-for-character is
+  re-sent one line at a time. Zero fallbacks on the final corpus.
+
+## Left alone deliberately (Task 3)
+
+- **`data/raw/` is untouched.** Soft-hyphen stripping happens on load, is
+  versioned by `NORMALISATION_VERSION`, and is reported per cycle.
+- **Four U+FFFD tokens remain**, from four stray C1 control characters in cycle
+  40 (U+0084, U+0094, U+0096 ×2). Too rare to justify a rule; documented
+  instead.
+- **One delimiter collision.** Two cycle-40 lines quote hashtag badges
+  (`#I stand with CEU`), so one lemma contains a literal `#`. Excluded from the
+  n-gram table, warned about at run time, counted in the manifest. Changing the
+  delimiter was not done — the task specifies `#`.
+- **No stopword filtering of the counted stream.** Every lemma is counted and
+  carries `pos_category`, `is_content` and `is_stopword`, so the content-word
+  view is one filter away rather than baked in.
+
+---
+
+# Task 4 — reaction scores: who caused the laughter, applause and noise
+
+Same branch. Classifies the parentheticals into reaction events and scores MPs
+on the reactions their speeches drew. The analysis is
+`data/derived/reactions/REPORT.md`.
+
+**New:** `src/parlamonitor/reactions.py` (the taxonomy: kind, intensity,
+audience, named interjector, per-cycle government mapping),
+`scripts/reaction_scores.py`, `tests/test_reactions.py`.
+
+Everything is rule-based and every rule is a named constant. The vocabulary was
+read off the corpus frequency table from Task 3, not invented — a classifier
+here would put a model's guess between the transcript and the count for no gain.
+
+## What needs a human call (Task 4)
+
+1. **MP-level scores exist for cycle 43 only.** The parentheticals files record
+   who reacted, never who provoked it; linking a reaction to a speaker needs the
+   speech around it, and only cycle 43 has a speeches export. Cycles 39–42 need
+   `backend/export_nlp_datasets.py --period 39..42` before they can be scored.
+   Corpus-level reaction counts and the 703-name heckler table already cover all
+   five cycles.
+
+2. **`derültség` is amusement, not humour.** In cycle 43 every opposition MP in
+   the laughter top five draws most of their laughter from the *government*
+   benches — the chamber laughing at them, not with them. The own-side /
+   other-side columns make this visible but cannot resolve it; calling anyone
+   "funniest" is an editorial judgement on top of these numbers, not a reading
+   of them.
+
+3. **Intensity weights are a judgement.** A standing ovation scores 3.0 and a
+   scattered clap 0.5. Nothing in the transcript says so. Every weighted column
+   has its unweighted count beside it so the weighting can be discarded.
+
+## Decisions that change the numbers (Task 4)
+
+| decision | default |
+| --- | --- |
+| Attribution | the floor-holder, except heckles, which go to their named interjector |
+| Government mapping | Fidesz–KDNP for 39–42; TISZA for 43, derived from the export's ministerial offices |
+| Bench of a factionless minister | government, inferred from holding executive office; recorded in `side_source` |
+| Multi-kind events | `Derültség és taps` counts toward both, so per-kind totals exceed the event count by ~1.7% |
+| Unattributed reactions | 11.5% name no bench; carried in `*_unattributed`, never assigned a side |
+| Minimum speeches | 5, flagged not filtered — rate columns are noisy below it |
+
+## Bugs found and fixed while building it
+
+- **`re.IGNORECASE` on the interjection pattern made the capitalised-token
+  classes match lowercase**, so `Közbeszólás az MSZP soraiból: Hazudik!` was
+  read as a person named "Közbeszólás az MSZP soraiból" — 3,541 events across
+  147 fake names. Case sensitivity is now scoped to the honorific, and a
+  candidate matching a reaction or bench phrase is reclassified as that
+  reaction with the quote kept.
+- **A single capitalised word before a colon is procedure, not a person**:
+  `Szünet: 14.19`, `Elnök: Igen.`, `Jelenlét-ellenőrzés: …` — 1,538 events. An
+  interjector must now have a full name, which costs 5 genuine surname-only
+  events across five cycles.
+- **NaN is truthy**, so factionless speakers were indexing a
+  `laughter_from_nan` column. They now get no side rather than a wrong one.
+
+## Left alone deliberately (Task 4)
+
+- **`Z. Kárpát Dániel` merges into `Kárpát Dániel`** — the leading initial reads
+  as a title. One name in 703; fixing it means special-casing initials.
+- **No sentiment or humour model.** The tables report what the note-taker wrote
+  down. Deciding whether a laugh was with or at a speaker is left to the
+  own-side/other-side columns and a reader.
+
+---
+
+# Task 5 — readability, affect and keywords
+
+Same branch. 1,693 cycle-43 speeches scored for readability, lexical diversity,
+keywords, sentiment and emotion. The analysis is
+`data/derived/metrics/REPORT.md`.
+
+**New:** `src/parlamonitor/readability.py` (saphes wrapper),
+`keywords.py` (TextRank on networkx; KeyBERT behind the `metrics` extra),
+`affect.py` (models, label calibration, valence), plus
+`scripts/speech_metrics.py`, `scripts/speech_affect.py`,
+`scripts/validate_affect.py` and three test modules.
+
+## What needs a human call (Task 5)
+
+1. **Big Five was requested and is not here.** There is no Hungarian Big Five
+   text model. The one in the local HF cache, `Minej/bert-base-personality`, is
+   `language: en` on `bert-base-uncased`; feeding it Hungarian produces numbers
+   that are not a measurement. A hub search returns two models with zero
+   downloads and no model card. Beyond the language problem, text-based Big
+   Five inference correlates r ≈ 0.2–0.4 with self-report even in English, is
+   trained on personal essays and social media, and parliamentary oratory is
+   performative and often not written by the speaker — so the construct would
+   not transfer even with perfect translation. Emitting `mp_big_five.csv` for
+   named politicians would have been inventing data. **Decided: skipped.** The
+   nearest defensible substitute is a stylistic profile from the columns that
+   now exist.
+
+2. **Two emotion channels are unusable and are flagged, not dropped.**
+   `emotion_hu_fear` and `emotion_hu_sadness` fail corpus validation. They stay
+   in the CSV because deleting a column hides the finding; `UNRELIABLE_CHANNELS`
+   and `affect_validation.json` name them. Whether to drop them from any
+   downstream analysis is a call for whoever uses the table.
+
+3. **KeyBERT candidates are lemma pairs, not phrases.** Running it on raw text
+   instead would give real quotable phrases at the cost of inflection
+   scattering. Worth revisiting if the keywords are for display.
+
+## Decisions that change the numbers (Task 5)
+
+| decision | default | why |
+| --- | --- | --- |
+| LIX long-word threshold | **8** | `saphes.recommended_threshold("hu")`; LIX's usual 6 is Swedish |
+| Word length | Hungarian letters | `cs gy ly ny sz ty zs dzs` are one letter each |
+| Sentence source | emtsv | a regex splitter breaks on `dr.` and `2026.`, and LIX is words-per-sentence |
+| Diversity | MATTR, 100-token window, content lemmas | TTR falls as text grows and would rank speakers by length |
+| Readability reliability | flagged above 60 words/sentence | catches the two roll-call records at LIX 594 |
+| Affect chunking | 400 subword tokens, mean over chunks | all three models cap at 512; 993 speeches needed more than one chunk |
+| Sentiment valence | expectation over the ordinal scale | argmax would snap a split distribution to one end |
+| Label mappings | derived at runtime by probing | no model declares its labels |
+
+## Where the models did not hold
+
+- **None of the three affect models declares its labels** — all ship
+  `LABEL_0`…`LABEL_n`. The mapping is derived by probing at run time and the
+  confusion matrix written to `affect_manifest.json`, so a model update changes
+  the calibration instead of silently mislabelling a column.
+- **Short probes are a weak reliability test, and were wrong in both
+  directions.** They flagged `emotion_hu_anger`, which behaves fine on real
+  speeches (r = −0.40 with valence, +0.42 with the other model's anger), and
+  passed `emotion_hu_fear`, which fires on two thirds of the corpus while
+  correlating with nothing. `validate_affect.py` now decides this on the scored
+  corpus, and it caught `emotion_hu_sadness` having the wrong sign, which I had
+  missed.
+- **Cross-model agreement is modest**: anger r = +0.42, joy +0.25, fear +0.15,
+  sadness +0.01. Two emotion models trained on different corpora barely agree
+  about sadness at all.
+
+## Left alone deliberately (Task 5)
+
+- **No sentiment lexicon fallback.** Only transformer scores, so there is one
+  provenance per number.
+- **`emotion_hu_*` columns are kept** despite two failing — the validation file
+  is the record, and silently dropping them would erase the finding.
+- **The `metrics` extra is optional.** keybert reaches sentence-transformers
+  and transformers reaches torch; the core install stays light, and TextRank
+  needs neither.
+
+---
+
+# Task 6 — syntactic complexity and loanword ratio
+
+Same branch. Two saphes measures that were missed the first time round, plus a
+parser change.
+
+**New:** `src/parlamonitor/syntax.py` (MDD/MHD via saphes, over a HuSpaCy or an
+emtsv parse), `src/parlamonitor/loanwords.py` (idegenszó-arány),
+`scripts/speech_syntax.py`, two test modules.
+
+## Why these were missed
+
+`loanword_ratio`, `mean_dependency_distance` and `mean_hierarchical_distance`
+are in saphes **0.2.1**; the installed version was **0.1.0**, which has none of
+them. The API was checked by introspecting the installed package rather than by
+reading the documentation, so the three did not appear. The lesson is small and
+concrete: introspection tells you what you have, not what exists.
+
+## What needs a human call (Task 6)
+
+1. **The loanword lexicon is not in this repo, by choice.** It is read from
+   `../saphes/experiments/loanwords/results/idegenszavak.txt` and recorded by
+   sha256. saphes' own study leaves its licence open — it is derived from a
+   webcorpus and verified against a copyrighted dictionary — so committing it
+   here would settle a question that study deliberately left open. A checkout
+   without the sibling repo gets a null column and a printed warning, not a
+   silent zero.
+
+2. **Proper nouns are excluded by a capitalisation proxy, not by NER.** emtsv
+   lowercases the lemma of a sentence-initial common noun and leaves a proper
+   noun's case alone, so a capitalised lemma is a usable signal. It will
+   misfile a genuinely capitalised common noun. The alternative — counting
+   every foreign surname as a loan word — is a larger and more systematic
+   error in a parliamentary corpus.
+
+3. **MDD is parser-dependent and the two parsers are not interchangeable.**
+   HuSpaCy follows Universal Dependencies; emtsv's `dep` uses its own scheme.
+   Head conventions decide every distance. `parser` is on every result and the
+   manifest says not to mix them.
+
+## Decisions that change the numbers (Task 6)
+
+| decision | default | why |
+| --- | --- | --- |
+| Parser | HuSpaCy `hu_core_news_md` | emtsv's cost is super-linear in document length; 3,000 words does not return inside 100 s |
+| `min_sentence_length` | 3 | Jing & Liu's; this corpus is full of `Köszönöm.` whose MDD is a degenerate 1 |
+| `max_sentence_length` | 120 | measured, not guessed: median 15, p99.9 102, and the roll-call's "sentence" is 517 |
+| Cross-sentence heads | made local roots, counted | dropping the documents would bias the corpus toward what the parser found easy |
+| Punctuation | `collapse` | the policy the literature uses |
+| MP aggregation | token-weighted | a two-sentence intervention should not weigh as much as a twenty-minute address |
+| Loanword unit | content lemmas, proper nouns excluded | surface forms miss the lexicon and return a plausible, low ratio with no error |
+
+## What surfaced
+
+- **saphes refused the first parse, correctly.** HuSpaCy runs `senter` before
+  `parser`, so sentence boundaries and heads can disagree, and `from_spacy`
+  raises rather than measuring the disagreement. Excluding `senter` does not
+  help — the parser itself emits cross-boundary heads. At corpus scale it is
+  2 tokens in 826,775.
+- **The roll-call broke a second metric.** It already had `readability_reliable
+  = false` for LIX at 594; unfiltered it also scored MHD 26.3 against a median
+  of 2.4, which flattened all 88 speakers onto one edge of the dashboard's
+  percentile strip. Same record, same cause, and now caught by a measured
+  sentence-length cap.
+- **Two independent measures agree.** Bencsik János is top on LIX (52.2) and on
+  MDD (2.86). One counts long words in long sentences, the other how far a word
+  sits from its governor; nothing mechanical connects them.
+- **`huspacy.download()` silently no-ops under uv.** It shells out to
+  `python -m pip`, which a uv venv does not have, and returns 0 anyway. The
+  model wheel is also misnamed (`-any-` where a version belongs), so uv rejects
+  it by URL; it has to be renamed and installed from a local file.
