@@ -300,27 +300,34 @@ footer.about a { color: var(--crow); }
       összetettség: átlagos függőségi távolság (MDD) és hierarchikus mélység
       (MHD), Jing &amp; Liu (2015) szerint, legalább 3 szavas mondatokon.
       Idegenszó-arány: 15 203 lemmás lista alapján (Bakos Ferenc szótárához
-      mérve), tulajdonnevek nélkül. Kulcsszavak: TextRank és KeyBERT. Hangulat: <code>NYTK/sentiment-hts5-hubert-hungarian</code>.
-      Érzelem: <code>visegradmedia-emotion/Emotion_RoBERTa_hungarian6</code> és
-      <code>MilaNLProc/xlm-emo-t</code>. Témák: BERTopic huBERT-beágyazásokon.</p>
-    <p><strong>Amit ez nem mér.</strong> Az érzelemmodellek közösségi médián
-      tanultak, a parlamenti szónoklat pedig más műfaj: megírt, előadott,
-      gyakran nem is a felolvasó szövege. A magas „düh” pontszám azt jelenti,
-      hogy a szöveg <em>hasonlít</em> a tanítóanyag dühösnek címkézett
-      szövegeire. Két csatorna meg is bukott az utólagos ellenőrzésen
-      (<code>emotion_hu_fear</code>, <code>emotion_hu_sadness</code>); ezeket
-      nem mutatjuk. <strong>Big Five személyiségpontszám nem készült</strong>:
-      magyar modell nem létezik, az angol nyelvűek pedig nem vihetők át erre a
-      nyelvre és műfajra.</p>
-    <p><strong>Az elemző része a mérésnek.</strong> Egy függőségi elemző annak a
-      korpusznak a fej-konvencióit hozza magával, amelyen tanították, és ezek a
-      konvenciók döntik el az összes távolságot. Az itt közölt MDD- és
-      MHD-értékek HuSpaCy-vel készültek, és <em>nem</em> vethetők össze más
-      elemző számaival. Az idegenszó-arány szintén annyit ér, amennyit a
-      szólista: az itt használt lista gyakoriság szerint válogat, és a leggyakoribb
-      2%-ot köznyelvi szókincsként elhagyta — tehát a <em>ritka</em> idegen
-      szavakat méri, a <code>probléma</code> vagy a <code>program</code> nincs
-      benne.</p>
+      mérve), tulajdonnevek nélkül. Kulcsszavak: TextRank és KeyBERT.
+      Hangulat és érzelem: <strong>szótáralapú</strong>, nem neurális modell.
+      Hangulat a Precognox magyar szentimentszótárával (1748 pozitív, 5940
+      negatív lemma, CC BY-NC 4.0), tagadáskezeléssel: a tagadás hatókörén
+      belüli szavak polaritása megfordul, így a <em>nem probléma</em> pozitív.
+      A <code>nélkül</code> névutó visszafelé hat, ezt külön kezeljük. Érzelem:
+      Ekman hat alapérzelme <strong>Putz Orsolya saját gyűjtéséből</strong>,
+      a szerző engedélyével. Témák: BERTopic huBERT-beágyazásokon.</p>
+    <p><strong>Amit ez nem mér.</strong> A szótáralapú mérés minden pontszáma
+      visszavezethető a konkrét szavakra, amelyek létrehozták — de a szótár nem
+      olvas kontextust. Két korlátot érdemes fejben tartani. A szentimentszótár
+      3,4-szer nagyobb a negatív oldalon, ezért a súlyozatlan számlálás eleve
+      negatív felé húz. Az érzelemszavak a tartalmas lemmák 2,9%-át teszik ki,
+      ezért a kevés találatot tartalmazó felszólalásokat <em>ritkának</em>
+      jelöljük: a 0,0 egyaránt jelentheti azt, hogy „nincs düh”, és azt, hogy
+      „nincs mit mérni”.</p>
+    <p>A szótárak általános magyar nyelvre készültek, ez a korpusz viszont
+      parlamenti. Néhány szó itt szakpolitikai szókincs, nem érzelemjelölő:
+      szűrés nélkül a <code>jó</code>, <code>támogatás</code>,
+      <code>kedves</code> és <code>segít</code> miatt az öröm lett volna a
+      domináns érzelem a felszólalások 62%-ában, a <code>vita</code> pedig a
+      dühöt vitte félre. Ezért a korpusz leggyakoribb 1%-ába eső szótári
+      tételeket kihagyjuk; hogy pontosan melyeket, azt a futási napló rögzíti.
+      <strong>Big Five személyiségpontszám nem készült</strong>: helyette az
+      erényetika szótára felé indultunk el.</p>
+    <p><strong>Köszönet.</strong> Az érzelemszótárak <strong>Putz Orsolya</strong>
+      saját gyűjtésének részei — folyamatban lévő munka, a szerző engedélyével
+      használjuk. A szótárakat nem tesszük közzé.</p>
     <p><strong>Lefedettség.</strong> Minden képviselőhöz kötött pontszám a 43.
       ciklusé, mert csak ehhez van beszédexport. A bekiabálás-hálózat 916 névvel
       jelölt közbeszólásból épül; a ciklus közbeszólásainak további 41%-a

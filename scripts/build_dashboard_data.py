@@ -36,7 +36,7 @@ from pathlib import Path
 
 import pandas as pd
 
-from parlamonitor.affect import UNRELIABLE_CHANNELS
+from parlamonitor.lexicon import EKMAN as EKMAN_NAMES
 
 ROOT = Path(__file__).resolve().parents[1]
 DERIVED = ROOT / "data" / "derived"
@@ -51,24 +51,20 @@ PROFILE_METRICS: tuple[tuple[str, str], ...] = (
     ("mattr_mean", "diversity_mattr"),
     ("loanword_ratio_mean", "loanword_ratio"),
     ("words_per_sentence_mean", "words_per_sentence"),
-    ("sentiment_valence", "sentiment_valence"),
-    ("emotion_xlm_anger", "emotion_anger"),
-    ("emotion_xlm_joy", "emotion_joy"),
-    ("emotion_xlm_sadness", "emotion_sadness"),
-    ("emotion_xlm_fear", "emotion_fear"),
+    ("sentiment_polarity", "sentiment_polarity"),
+    ("emotion_anger", "emotion_anger"),
+    ("emotion_disgust", "emotion_disgust"),
+    ("emotion_fear", "emotion_fear"),
+    ("emotion_joy", "emotion_joy"),
+    ("emotion_sadness", "emotion_sadness"),
+    ("emotion_surprise", "emotion_surprise"),
     ("laughter_per_minute", "laughter_per_minute"),
     ("applause_per_minute", "applause_per_minute"),
     ("heckles_received", "heckles_received"),
     ("heckles_given", "heckles_given"),
 )
 
-SENTIMENT_CLASSES = (
-    "sentiment_very_negative",
-    "sentiment_negative",
-    "sentiment_neutral",
-    "sentiment_positive",
-    "sentiment_very_positive",
-)
+EKMAN = ("anger", "disgust", "fear", "joy", "sadness", "surprise")
 
 
 def parse_args(argv: Sequence[str] | None = None) -> argparse.Namespace:
@@ -234,10 +230,11 @@ def build_topics(derived: Path, speeches: pd.DataFrame) -> list[dict]:
                 else None
             ),
             "mattr": round(float(prose["mattr"].mean()), 4) if len(prose) else None,
-            "sentiment_valence": round(float(group["sentiment_valence"].mean()), 4),
-            "emotion_anger": round(float(group["emotion_xlm_anger"].mean()), 4),
-            "emotion_joy": round(float(group["emotion_xlm_joy"].mean()), 4),
-            "emotion_sadness": round(float(group["emotion_xlm_sadness"].mean()), 4),
+            "sentiment_polarity": round(float(group["sentiment_polarity"].mean()), 4),
+            **{
+                f"emotion_{name}": round(float(group[f"emotion_{name}"].mean()), 6)
+                for name in EKMAN
+            },
         }
         # Reactions per hour of floor time, so a topic that simply got more
         # airtime does not look more provocative than one that did not.
@@ -324,13 +321,12 @@ def build_parties(people: pd.DataFrame, speeches: pd.DataFrame) -> list[dict]:
                 # as much as a twenty-minute address.
                 "lix": round(float((prose["lix"] * weights).sum() / weights.sum()), 2),
                 "mattr": round(float(prose["mattr"].mean()), 4),
-                "sentiment_valence": round(float(group["sentiment_valence"].mean()), 4),
-                "emotion_anger": round(float(group["emotion_xlm_anger"].mean()), 4),
-                "emotion_joy": round(float(group["emotion_xlm_joy"].mean()), 4),
+                "sentiment_polarity": round(
+                    float(group["sentiment_polarity"].mean()), 4
+                ),
                 **{
-                    c: round(float(group[c].mean()), 4)
-                    for c in SENTIMENT_CLASSES
-                    if c in group
+                    f"emotion_{name}": round(float(group[f"emotion_{name}"].mean()), 6)
+                    for name in EKMAN
                 },
             }
         )
@@ -345,7 +341,7 @@ def main(argv: Sequence[str] | None = None) -> int:
     print("Joining derived tables ...")
     speeches = build_speeches(args.derived)
     print(f"  {len(speeches):,} speeches")
-    missing_affect = int(speeches["sentiment_valence"].isna().sum())
+    missing_affect = int(speeches["sentiment_polarity"].isna().sum())
     missing_topic = int(speeches["topic"].isna().sum())
     print(f"  without affect: {missing_affect}; without topic: {missing_topic}")
 
@@ -364,6 +360,15 @@ def main(argv: Sequence[str] | None = None) -> int:
 
     # Percentile strips need the whole population per metric, so the columns
     # travel as arrays rather than being recomputed in the browser.
+    # Emotion rates are hits per token, around 0.003, which renders as "0".
+    # Scaled to hits per 1,000 tokens for display: the same quantity in a
+    # magnitude a reader can hold. The CSVs keep the raw rate.
+    people = people.copy()
+    for name in EKMAN:
+        column = f"emotion_{name}"
+        if column in people:
+            people[column] = (people[column] * 1000).round(3)
+
     distributions = {}
     eligible = people[~people["below_min_speeches"]]
     for column, key in PROFILE_METRICS:
@@ -393,11 +398,14 @@ def main(argv: Sequence[str] | None = None) -> int:
         "lix_band",
         "mattr",
         "readability_reliable",
-        "sentiment_valence",
-        "sentiment_label",
-        "emotion_xlm_anger",
-        "emotion_xlm_joy",
-        "emotion_xlm_sadness",
+        "mdd",
+        "mhd",
+        "loanword_ratio",
+        "sentiment_score",
+        "sentiment_polarity",
+        "emotion_dominant",
+        "emotion_sparse",
+        *[f"emotion_{name}" for name in EKMAN],
         "textrank_keywords",
         "keybert_keywords",
         *[c for c in speeches.columns if c.startswith("reaction_")],
@@ -410,7 +418,8 @@ def main(argv: Sequence[str] | None = None) -> int:
             "scores need a speeches export, and cycle 43 is the only cycle that "
             "has one."
         ),
-        "unreliable_channels": sorted(UNRELIABLE_CHANNELS),
+        "affect_method": "dictionary-based (Precognox sentiment; Putz Orsolya emotion)",
+        "emotion_scheme": list(EKMAN_NAMES),
         "min_speeches": args.min_speeches,
         "people": json.loads(people.to_json(orient="records")),
         "parties": parties,
