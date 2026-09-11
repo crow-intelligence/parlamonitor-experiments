@@ -17,6 +17,13 @@ data/raw/parantheticals/
 data/derived/
 exports/
 
+# Lexicons. Putz Orsolya's emotion dictionaries are her ongoing work, used
+# with permission and explicitly not redistributable. The Precognox sentiment
+# lexicon has a licence conflict upstream (the listing says CC BY-SA, the
+# dataset page CC BY-NC 4.0) and stays out until that is settled. The
+# provenance record in data/lexicons/README.md is committed in their place.
+data/lexicons/**/*.txt
+
 # The dashboard's data bundle is derived from data/derived and rebuilt in a
 # second by scripts/build_dashboard_data.py. The page that reads it is in git.
 dashboard/data/
