@@ -51,6 +51,21 @@ DEFAULT_MODEL = "hu_core_news_md"
 BATCH_SIZE = 32
 
 
+def _repo_relative(path):
+    """Path as written in the repo, for provenance records that get published.
+
+    `str(path)` on a resolved path carries the developer's home directory into
+    every artefact built from it, and those artefacts ship. Falls back to the
+    basename when the input genuinely lives outside the checkout, so a file
+    passed from elsewhere is still identified without leaking where from.
+    """
+    path = Path(path).resolve()
+    try:
+        return str(path.relative_to(ROOT))
+    except ValueError:
+        return path.name
+
+
 def parse_args(argv: Sequence[str] | None = None) -> argparse.Namespace:
     parser = argparse.ArgumentParser(description=__doc__.splitlines()[0])
     parser.add_argument("--output-dir", type=Path, default=DEFAULT_OUTPUT_DIR)
@@ -159,7 +174,7 @@ def main(argv: Sequence[str] | None = None) -> int:
         "python": sys.version.split()[0],
         "platform": platform.platform(),
         "command": " ".join(sys.argv),
-        "source": str(path),
+        "source": _repo_relative(path),
         "parser": PARSER,
         "parameters": {
             "model": args.model,

@@ -56,6 +56,22 @@ ROOT = Path(__file__).resolve().parents[1]
 DEFAULT_OUTPUT_DIR = ROOT / "data" / "derived" / "metrics"
 CHECKPOINT = 200
 
+
+def _repo_relative(path):
+    """Path as written in the repo, for provenance records that get published.
+
+    `str(path)` on a resolved path carries the developer's home directory into
+    every artefact built from it, and those artefacts ship. Falls back to the
+    basename when the input genuinely lives outside the checkout, so a file
+    passed from elsewhere is still identified without leaking where from.
+    """
+    path = Path(path).resolve()
+    try:
+        return str(path.relative_to(ROOT))
+    except ValueError:
+        return path.name
+
+
 # Not committed here: the list is derived from a webcorpus and verified against
 # a copyrighted dictionary, and saphes' own study leaves its licence open. It
 # is read from the sibling checkout and recorded by hash instead.
@@ -367,7 +383,7 @@ def main(argv: Sequence[str] | None = None) -> int:
         "python": sys.version.split()[0],
         "platform": platform.platform(),
         "command": " ".join(sys.argv),
-        "source": str(path),
+        "source": _repo_relative(path),
         "cycle": args.cycle,
         "parameters": {
             "emtsv_modules": args.modules,

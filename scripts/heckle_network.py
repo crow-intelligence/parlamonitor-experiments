@@ -46,6 +46,22 @@ from parlamonitor.reactions import GOVERNING_PARTIES, Kind, events_in
 ROOT = Path(__file__).resolve().parents[1]
 DEFAULT_OUTPUT_DIR = ROOT / "data" / "derived" / "reactions"
 
+
+def _repo_relative(path):
+    """Path as written in the repo, for provenance records that get published.
+
+    `str(path)` on a resolved path carries the developer's home directory into
+    every artefact built from it, and those artefacts ship. Falls back to the
+    basename when the input genuinely lives outside the checkout, so a file
+    passed from elsewhere is still identified without leaking where from.
+    """
+    path = Path(path).resolve()
+    try:
+        return str(path.relative_to(ROOT))
+    except ValueError:
+        return path.name
+
+
 _SPAN = re.compile(r"\(([^()]*)\)")
 
 
@@ -268,7 +284,7 @@ def main(argv: Sequence[str] | None = None) -> int:
 
     provenance = {
         "cycle": args.cycle,
-        "source": str(path),
+        "source": _repo_relative(path),
         "generated_at": datetime.now(UTC).isoformat(),
         "edge_semantics": (
             "interruption: source interjected during target's speech; "
