@@ -66,8 +66,10 @@ def normalise_name(name: str) -> str:
     """
     text = _HONORIFIC.sub("", name)
     text = _INITIAL.sub("", text)
-    text = " ".join(text.split()).casefold()
-    decomposed = unicodedata.normalize("NFKD", text)
+    text = " ".join(text.split())
+    # Casefold after decomposing: compatibility forms such as U+1D670 (𝙰)
+    # survive casefolding and only become an uppercase "A" under NFKD.
+    decomposed = unicodedata.normalize("NFKD", text).casefold()
     return "".join(ch for ch in decomposed if not unicodedata.combining(ch))
 
 
