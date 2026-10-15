@@ -163,3 +163,15 @@ def test_content_lemmas_drop_stopwords_after_folding():
 def test_the_nltk_extras_are_not_already_in_spacy():
     assert not set(HECKLE_STOP_EXTRAS) & SPACY_HU
     assert all("õ" not in word for word in HECKLE_STOP_EXTRAS)
+
+
+@given(
+    st.lists(
+        st.tuples(
+            st.text(), st.text(), st.sampled_from(["[/N][Nom]", "[/V]", "[Punct]"])
+        )
+    )
+)
+def test_every_counted_lemma_contains_a_letter(tokens):
+    lemmas = content_lemmas([[list(t) for t in tokens]])
+    assert all(any(ch.isalpha() for ch in lemma) for lemma in lemmas)

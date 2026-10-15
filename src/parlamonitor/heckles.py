@@ -270,7 +270,10 @@ def content_lemmas(
             ``True``.
 
     Returns:
-        The lemmas, in order.
+        The lemmas, in order. A lemma with no letter in it is always dropped:
+        emtsv tags some symbols as nouns -- the Hungarian quotation marks
+        ``„`` and ``”``, and fragments such as ``(3)-`` or ``100%`` -- and they
+        would otherwise be counted as words.
 
     Example:
         >>> sents = [[["Ne", "ne", "[/Adv]"],
@@ -280,6 +283,11 @@ def content_lemmas(
         ['ne', 'hazudik']
         >>> content_lemmas(sents, frozenset({"ne"}))
         ['hazudik']
+
+        Symbols emtsv tags as nouns are not words:
+
+        >>> content_lemmas([[["„", "„", "[/N][Nom]"], ["Bravó", "bravó", "[/N][Nom]"]]])
+        ['bravó']
     """
     out = []
     for sentence in sentences:
@@ -287,6 +295,6 @@ def content_lemmas(
             if content_only and not is_content_word(tag):
                 continue
             key = fold(lemma)
-            if key not in stopwords:
+            if key not in stopwords and any(ch.isalpha() for ch in key):
                 out.append(key)
     return out

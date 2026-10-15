@@ -711,9 +711,17 @@ Branch `feat/dashboard-heckle-allotaxonographs`, stacked on
 3. **Light verbs.** The default stoplist removes *van* (*így van*), which was
    the one bench contrast stable across cycles 39–42. `--no-light-verbs`
    brings it back.
-4. **Samples are small:** 346–866 content tokens per group. The bootstrap
+4. **Samples are small:** 346–863 content tokens per group. The bootstrap
    intervals are in the manifest. The dashboard shows the RTD and the token
    counts on every comparison.
+
+## Fixed after review (Task 9)
+
+- **Symbols were counted as words.** emtsv tags the Hungarian quotation marks
+  `„` and `”` as nouns. `heckles.content_lemmas` now drops any lemma without a
+  letter. Two group sizes moved: opposition-42 from 443 to 442 tokens, and
+  TISZA from 866 to 863. The three RTDs and the 95% bootstrap are unchanged to
+  three decimals.
 
 ## Left alone deliberately (Task 9)
 
