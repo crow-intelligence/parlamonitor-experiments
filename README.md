@@ -247,17 +247,27 @@ all five cycles pooled so the per-cycle columns stay comparable.
 
 | decision | default | flag |
 | --- | --- | --- |
-| Duplicate lines | counted both as-is and with consecutive runs collapsed, side by side | — |
+| Duplicate lines | counted three ways side by side: as-is (`raw`), consecutive runs collapsed (`raw_collapsed`), copied blocks removed (`raw_dedup`) | `--block-window` (default 10 runs) |
 | N-gram score | NPMI, threshold 0.5, `min_count` 5, two passes | `--scoring`, `--threshold`, `--min-count`, `--no-trigrams` |
 | Connector words | articles and conjunctions may sit inside a phrase, not at its edge | `--no-connector-words` |
 | Party names | `Jobbik`, `Momentum`, `Párbeszéd`, `Együtt` repaired — emMorph reads `Jobbik` as *jobbik* and lemmatises it to `jó` | `--no-proper-noun-repair` |
 | Soft hyphens | stripped; emtsv turns U+00AD into U+FFFD and splits the word | — |
 | Punctuation | dropped before detection and counting | — |
 
-21% of cycle 41's lines repeat the line before them, against 5–8% elsewhere, and
-collapsing removes 93% of `Bóna#Zolta#jelzés` and 47% of `folyamatos#sípolás`.
-Prefer `raw_collapsed` when comparing cycle 41 with the others; `REPORT.md`
-argues the case.
+**Use `raw_dedup` when comparing cycle 41 or 42 with any other cycle.**
+
+- **What dedup removes.** 54.5% of cycle 41's lines and 23.5% of cycle 42's are
+  verbatim copies of earlier blocks of the same file. The 2018 protest block
+  alone is written out 176 times.
+- **What it finds elsewhere.** It flags nothing in cycles 39 and 43, and 10
+  lines in cycle 40.
+- **What it does to the anomalies.** `folyamatos#sípolás` falls from 19,961
+  to 122 in cycle 41, and `Bóna#Zolta#jelzés` from 8,721 to 81.
+- **Why not `raw_collapsed`.** `REPORT.md` recommends it, but it only removes
+  adjacent repeats and leaves the copies in place. That report predates the
+  finding. See `notebooks/01_parentheticals_data_repairs.ipynb`.
+
+The wide table carries `dedup_cNN` / `rel_dedup_cNN` next to the as-is pairs.
 
 ## Task 4 — reaction scores: laughter, applause, heckling
 
