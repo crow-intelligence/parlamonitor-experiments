@@ -454,3 +454,136 @@ concrete: introspection tells you what you have, not what exists.
   `python -m pip`, which a uv venv does not have, and returns 0 anyway. The
   model wheel is also misnamed (`-any-` where a version belongs), so uv rejects
   it by URL; it has to be renamed and installed from a local file.
+
+---
+
+# Task 7 — parentheticals, round 2: exploratory notebooks
+
+Branch `feat/parentheticals-explore`. Three notebooks, executed and committed
+with their outputs, plus one small bug fix that was blocking CI. Nothing in the
+Task 3/4 pipeline, its outputs or the dashboard was changed. Every finding
+below is written up for a decision, not applied.
+
+**New:**
+- `notebooks/01_parentheticals_data_repairs.ipynb`: is the duplication real,
+  and can names be repaired from the corpus itself?
+- `notebooks/02_parentheticals_procedural.ipynb`: what the 29% of segments
+  that Task 4 calls `OTHER` actually are.
+- `notebooks/03_parentheticals_heckle_content.ipynb`: what the hecklers say.
+
+**Changed:** `interactions.normalise_name` now casefolds *after* NFKD.
+Hypothesis found `𝙰` (U+1D670), which survives `casefold()` and decomposes to
+an uppercase `A`. Checked against all 746 names in the corpus and the cycle-43
+registry: no key changes, so no published output moves.
+
+Scratch outputs go to `data/derived/explore/`, which is gitignored:
+- `name_gazetteer_draft.csv`;
+- `quote_lemma_cache.jsonl`, the emtsv output for 40,881 distinct quotes, so a
+  re-run needs no service.
+
+## The headline: cycles 41 and 42 are partly copies
+
+- **The files contain verbatim block copies.** 54.5% of cycle 41's lines and
+  23.5% of cycle 42's are copies of earlier stretches of the same file. The 12
+  December 2018 protest block (173 lines) is written out 176 times.
+  Cycles 39, 40 and 43 have none.
+- **This resolves the Task 3 question, and the answer is bigger than Task 3
+  measured.** `Bóna Zoltán jelzésére:` drops from 8,721 to 81 and
+  `Folyamatos sípolás.` from 15,840 to 90. Cycle 41's adjacent-repeat rate falls
+  from 21.1% to 7.3%, inside the range of the other cycles. `raw_collapsed`
+  does not remove block copies, so the advice in the Task 3 report to "use
+  `raw_collapsed` for cycle 41" is not enough.
+- **The exporter itself does not invent adjacent repeats.** In cycle 43, 92% of
+  consecutive repeats are matched to two separate stage directions in the
+  speeches' verbatim `text`. The copies therefore sit in the database rows
+  behind cycles 41–42. Finding out why needs the application repo, which is
+  not on this machine.
+
+How much it moves the published numbers (per 1,000 lines, cycle 41, as-is →
+block-dedup):
+
+| | heckling | whistling | applause | bell |
+| --- | ---: | ---: | ---: | ---: |
+| as-is (= `reaction_summary.csv`) | 110.3 | 208.8 | 214.4 | 43.9 |
+| block-dedup | 133.7 | 3.0 | 388.8 | 82.7 |
+
+The cycle-41 heckler ranking reorders. Bana Tibor drops from 2nd to 33rd
+(1,987 → 62) and Varga László from 5th to 37th. **Cycle 43 does not move at
+all**, so the dashboard and every MP-level score are unaffected.
+
+## What needs a human call (Task 7)
+
+1. **Which view is the default for cycles 41–42?** I'd recommend block-dedup
+   for every cross-cycle comparison and regenerating the Task 3 and Task 4
+   tables with a third `raw_dedup` column, keeping as-is for provenance. That
+   changes published numbers, so it was not done here.
+2. **Fix three `reactions.py` bugs** that change published counts. Each should
+   be its own PR with before/after tables:
+   - **Hyphenated surnames are never parsed as interjectors.** 1,038
+     interjections by 22 MPs are lost: Varga-Damm Andrea 477, Gaudi-Nagy
+     Tamás 243, Sebián-Petrovszki László 211. That includes 24 in cycle 43,
+     where Kátai-Németh Vilmos is missing from the heckle network.
+   - **`Event.quote` keeps only the first sentence.** About 10% of quotes are
+     truncated, and the rest falls into `OTHER`. Counts are unaffected; the
+     `quote` column is not.
+   - **Two-letter initials** (`Gy.`, and in principle `Zs.`, `Sz.`, `Cs.`) are
+     split off as sentences. So is a middle initial (`Sallai R. Benedek:`),
+     which fails to parse at all.
+3. **The Task 4 `REPORT.md` heckling row disagrees with its own CSV.** Cycle
+   39 is 96.0 in the report against 117.3 in `reaction_summary.csv`. Whistling,
+   laughter and bell agree. It looks stale after a later classifier change.
+   Regenerate the report from the CSV.
+4. **Name repair from the corpus.** Full name sequences attested in the corpus
+   (interjectors plus cycle-43 speakers) fix 29,085 lemmas, such as `Zolta` →
+   `Zoltán` and `rétvári` → `Rétvári`. The repair leaves `Nagy taps` as the
+   adjective and changes the display form of 478 of the 3,524 Task 3 n-grams.
+   The draft table has `checked_by_human = false`. Promotion means a reviewed
+   copy in `data/labels/` and the code in `propernouns.py`.
+5. **`Mi Hazánk` merge.** It is a clean two-token rule: 920 tokens, and the
+   single lowercase *mi hazánk* is untouched. Should the lemma be `Mi Hazánk`
+   (with a space) or a `#`-free alternative?
+6. **Party data for cycles 39–42 named interjectors.** None exists in these
+   files. Every bench comparison of heckle *content* for those cycles therefore
+   rests on unnamed heckles only, and is underpowered. Speeches exports for
+   39–42 would fix this and also unlock MP-level reaction scores.
+7. **Emotion channels on heckles.** In this register, *sadness* is 80% *jaj* /
+   *baj* and *disgust* is 96% *szégyell* + *ronda*. Report them as what they
+   measure here, or drop them for heckles.
+8. **Textual parentheses** (place names, `EU`, county names) are in the
+   parentheticals files as if they were stage directions. Filter them on load,
+   or leave them for the exporter.
+
+## Decisions that change the numbers (Task 7)
+
+| decision | default | where |
+| --- | --- | --- |
+| Block detector | run-length encoded, window of 10 runs | nb 01 §2; sensitivity table there |
+| Analysis view | block-dedup throughout nb 02–03 | parameter cell |
+| Chamber-size bound | 386 for cycle 39, 199 after | nb 02 `PARAMS["seats"]` |
+| Missing tally fields | `null`, never 0 | nb 02 §2b |
+| Stock-heckle identity | casefold + strip punctuation | nb 03 |
+| Keyness | log-likelihood, min freq 5, band ≥ p001 (LL ≥ 10.83), content words only | nb 03 |
+| RTD | α = 1/3; bootstrap 200 draws, seed 0 | nb 03 §6 |
+| Affect | pooled per bench × cycle; unbalanced Precognox; emotion `min_hits` 5 | nb 03 §7 |
+
+## Where my own first pass was wrong
+
+An earlier draft of notebook 01 used a line-level window that skipped
+windows of a single repeated line. That left identical runs inside the copies
+in place. Once the copies were deleted, those leftovers joined into a "4,925-line
+run of `Bóna Zoltán jelzésére:`" that does not exist in the file. Its longest
+real run is 45. The run-aware detector replaced it, and notebook 01 keeps the
+draft detector beside it in the sensitivity table so the mistake stays
+visible.
+
+## Left alone deliberately (Task 7)
+
+- **No change to `src/` beyond the `normalise_name` fix.** All the prototypes
+  (`block_copy_mask`, `repair_names`, `merge_mi_hazank`, the procedural
+  extractors, `quotes_in`) stay in the notebooks until the decisions above are
+  made. Their promotion targets are listed at the end of each notebook.
+- **No bench is inferred for a named cycle-39–42 heckler** from the benches
+  mentioned around them. That would be inventing data.
+- **Emotion lexicon entries are not reproduced.** Only the one or two entries
+  that dominate a channel are named, as `lexicon.py` already does, and Putz
+  Orsolya is credited in notebook 03.

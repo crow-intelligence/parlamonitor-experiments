@@ -384,6 +384,22 @@ runs +0.083 for TISZA (government) down to −0.095 for Mi Hazánk.
 `Minej/bert-base-personality` is English-only on `bert-base-uncased`. See
 `CHANGES_SUMMARY.md`.
 
+## Exploratory notebooks — parentheticals, round 2
+
+`notebooks/01_parentheticals_data_repairs.ipynb`, `02_parentheticals_procedural.ipynb`
+and `03_parentheticals_heckle_content.ipynb` are committed with their outputs and
+re-run with:
+
+```bash
+uv run jupyter nbconvert --to notebook --execute --inplace notebooks/0*.ipynb
+```
+
+Notebook 03 needs the emtsv container on its first run only; its quote
+lemmas are cached to `data/derived/explore/`. The main finding concerns
+cycles 41 and 42: more than half of cycle 41's parentheticals, and nearly a
+quarter of cycle 42's, are verbatim copies of earlier blocks. See
+`CHANGES_SUMMARY.md`, Task 7, before comparing those cycles with any other.
+
 ## The dashboard
 
 ```bash
