@@ -730,3 +730,66 @@ Branch `feat/dashboard-heckle-allotaxonographs`, stacked on
 - **Display forms.** Counting is case-folded. For display, each word takes its
   most frequent spelling (`Gyurcsány`, `KGBéla`), so names don't print in
   lowercase. The counts are not affected.
+
+---
+
+# Task 10 — speech allotaxonographs: compare any two speakers, factions or sides
+
+Branch `feat/dashboard-speech-allotaxonographs`, stacked on
+`feat/dashboard-heckle-allotaxonographs`.
+
+**New:**
+- **`scripts/speech_vocabulary.py`**: content-lemma counts per cycle-43
+  speaker, faction, Fidesz–KDNP and side, from `speech_metrics.py`'s emtsv
+  cache. It records keyflux's RTD for four reference pairs in the manifest.
+- **`dashboard/rtd.js`**: a line-for-line port of keyflux's `rtd` /
+  `RankedList.aligned`.
+- **`tests/test_dashboard_rtd.py`**: runs `rtd.js` under node against keyflux
+  on 105 random and edge-case inputs, comparing the divergence and every
+  type's ranks, direction and contribution. It is skipped without node.
+- **A "Szókincs" tab:**
+  - two pickers grouped into sides, alliance, factions and speakers, plus a
+    swap button;
+  - the pair goes into the URL;
+  - the same diamond and word shift as the heckle section;
+  - a table view;
+  - reference distances for scale.
+
+  Its data is a separate `data/vocabulary.json`, loaded on first use.
+
+**Changed:**
+- **`build_dashboard_data.py`** ships `vocabulary.json` and puts a small
+  pointer in the main bundle.
+- **The diamond renderer** takes its legend element as a parameter, so both
+  sections share it.
+- **Word-shift tick labels** get as many decimals as the step needs. Before
+  this, 0.05% steps all read "0%".
+
+**Fixed on the parent branch (PR #3):** `heckles.content_lemmas` dropped no
+symbols, so the quotation marks `„` and `”` counted as heckle words. They are
+dropped now, and the RTDs are unchanged to three decimals.
+
+**Verification:**
+- **Browser vs keyflux.** The page's TISZA ↔ Fidesz (0.358) and
+  government ↔ opposition (0.350) equal keyflux's values in the manifest.
+- **Browser check.** Driven in headless Chrome at 1280 px light and dark, and
+  at 600 px: pickers, swap, same-entity guard, URL round-trip and tooltips all
+  work, with no console errors. The heckle section was re-checked after the
+  shared-renderer change.
+
+## What needs a human call (Task 10)
+
+1. **`--min-tokens 300`.** 160 of 197 speakers are offered. Below that, a
+   speaker's ranks are mostly ties at count 1, and RTD against anyone is
+   noise. It changes who can be picked, not any number.
+2. **`dr.` is stopped for speeches only.** It is an honorific like `úr`. It is
+   not added to the heckle list, which would move PR #3's numbers again for a
+   word that never ranks there.
+3. **Names lemmatise in lowercase** (`gulyás`, `jános`). The dashboard says
+   so. The real fix is promoting notebook 01's corpus-attested name repair.
+4. **Overlap.** An MP compared with their own faction is part of that
+   faction's counts. The lede says so. Excluding the member from the faction
+   on the fly is possible but would make the faction's numbers depend on who
+   is being compared.
+5. **The published site** needs `rtd.js`, the new `app.js` / `index.html`
+   and both data files synced by hand.

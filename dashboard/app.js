@@ -1,3 +1,4 @@
+import { rtd } from "./rtd.js";
 import Graph from "./vendor/graphology.esm.js";
 import forceAtlas2 from "./vendor/forceatlas2.esm.js";
 
@@ -103,6 +104,31 @@ const T = {
     tableSummary: "Táblázat: a 25 legnagyobb hozzájárulás",
     tableHead: ["szó", "jellemzőbb", "db bal", "db jobb", "rang bal", "rang jobb", "részesedés"]
   },
+  vocab: {
+    lede: "Ugyanaz a rombusz, ezúttal a felszólalások szókincsére: bármely két " +
+      "szereplő összevethető — oldal, frakció vagy egyes képviselő, miniszter. " +
+      "Csak a tartalmas szavak számítanak (főnév, ige, melléknév, határozószó), " +
+      "a töltelékszavak és a megszólítások nélkül. Ha egy képviselőt a saját " +
+      "frakciójával vet össze, az ő szavai a frakció számaiban is benne vannak.",
+    left: "Bal oldal", right: "Jobb oldal", swap: "Csere",
+    groups: { side: "Oldalak", group: "Pártszövetség", faction: "Frakciók", person: "Felszólalók" },
+    sides: { government: "Kormányoldal (TISZA és a miniszterek)", opposition: "Ellenzék" },
+    noFaction: "frakción kívül",
+    loading: "A szókincsadatok betöltése…",
+    same: "Két különböző szereplőt válasszon.",
+    caption: (rtd, l, r) =>
+      `RTD = ${rtd} (0 = azonos rangsor, 1 = semmi közös). ` +
+      `${l.name}: ${l.speeches} felszólalás, ${l.tokens} tartalmas szó · ` +
+      `${r.name}: ${r.speeches} felszólalás, ${r.tokens} tartalmas szó.`,
+    scale: refs => "Viszonyításként: " + refs.join(" · ") +
+      ". A bekiabálások két oldala között ennél jóval nagyobb, 0,7 körüli az eltérés.",
+    threshold: (n, min) =>
+      `${n} felszólaló választható: aki legalább ${min} tartalmas szót mondott. ` +
+      "Ennél rövidebb szövegnél a rangsor főleg zaj.",
+    computed: "A különbséget a böngésző számolja, ugyanazzal a módszerrel, mint a keyflux csomag.",
+    names: "A lemmatizáló néhány családnevet közszóként olvas (gulyás, jános), " +
+      "ezért ezek kisbetűvel jelennek meg; a számolást ez nem érinti."
+  },
   heat: {
     sentiment_polarity: "Hangulat", emotion_anger: "Düh", emotion_joy: "Öröm",
     lix: "LIX", mdd: "MDD", loanword_ratio: "Idegen sz.", mattr: "Szókincs",
@@ -159,6 +185,8 @@ function selectView(view) {
   buttons.forEach(b => b.setAttribute("aria-selected", String(b.dataset.view === view)));
   document.querySelectorAll("[data-panel]").forEach(p =>
     p.classList.toggle("hidden", p.dataset.panel !== view));
+  // The vocabulary view loads its own data file, and only when first opened.
+  if (view === "vocab") renderVocab();
 }
 
 function buildTabs() {
@@ -929,7 +957,8 @@ function renderAllotaxonograph() {
     `${S.share}: ${fmt(share(t), 2)}%`;
 
   document.getElementById("allotax-intro").textContent = S.intro[cmp.id] || "";
-  drawAllotaxDiamond(document.getElementById("allotax-diamond"), types, cmp, L, R, LEFT, RIGHT, S, wordTip);
+  drawAllotaxDiamond(document.getElementById("allotax-diamond"), types, cmp, L, R, LEFT, RIGHT, S, wordTip,
+    document.getElementById("allotax-legend"));
   const top = types.filter(t => t.dir !== "shared")
     .sort((a, b) => d3.descending(a.contrib, b.contrib)).slice(0, 25);
   drawWordShift(document.getElementById("allotax-shift"), top, share, LEFT, RIGHT, S, wordTip);
@@ -955,7 +984,7 @@ function renderAllotaxonograph() {
     `<td class="num">${fmt(t.r2, 1)}</td><td class="num">${fmt(share(t), 2)}%</td>`);
 }
 
-function drawAllotaxDiamond(host, types, cmp, L, R, LEFT, RIGHT, S, wordTip) {
+function drawAllotaxDiamond(host, types, cmp, L, R, LEFT, RIGHT, S, wordTip, legendHost) {
   const W = Math.max(300, Math.min(560, host.clientWidth || 520));
   const pad = 14, top = 44, bottom = 12, side = W - 2 * pad;
   const H = top + side + bottom;
@@ -1067,7 +1096,7 @@ function drawAllotaxDiamond(host, types, cmp, L, R, LEFT, RIGHT, S, wordTip) {
   head.append("text").attr("x", X(0, 0)).attr("y", top - 8).attr("text-anchor", "middle")
     .style("fill", "var(--text-muted)").text("▲ " + S.apex);
 
-  document.getElementById("allotax-legend").innerHTML =
+  legendHost.innerHTML =
     `<span>${S.legend}:</span>` +
     S.bins.map((b, i) => `<span><i class="swatch" style="background:var(--seq-${i + 1})"></i>${b}</span>`).join("") +
     `<span style="color:var(--text-muted)">${S.contours}</span>`;
@@ -1096,6 +1125,9 @@ function drawWordShift(host, top, share, LEFT, RIGHT, S, wordTip) {
       `H${xs}Z`;
   };
   const x0 = x(0);
+  // As many decimals as the tick step needs: 0.05% steps must not all read "0%".
+  const ticks = x.ticks(5), step = ticks.length > 1 ? Math.abs(ticks[1] - ticks[0]) : 1;
+  const decimals = Math.max(0, Math.ceil(-Math.log10(step) - 1e-9));
   const rows = svg.append("g").selectAll("g").data(top).join("g");
   rows.append("path")
     .attr("d", (t, i) => {
@@ -1121,8 +1153,142 @@ function drawWordShift(host, top, share, LEFT, RIGHT, S, wordTip) {
     .style("stroke", "var(--text-muted)").style("stroke-width", 1).style("pointer-events", "none");
   const axis = svg.append("g").attr("class", "axis")
     .attr("transform", `translate(0,${topPad + top.length * rowH + 4})`)
-    .call(d3.axisBottom(x).ticks(5).tickFormat(v => fmt(Math.abs(v), 1) + "%").tickSizeOuter(0));
+    .call(d3.axisBottom(x).ticks(5).tickFormat(v => fmt(Math.abs(v), decimals) + "%").tickSizeOuter(0));
   axis.select(".domain").remove();
   svg.append("text").attr("x", x0).attr("y", H - 2).attr("text-anchor", "middle")
     .style("font-size", "10.5px").style("fill", "var(--text-muted)").text(S.axis);
+}
+
+
+/* ------------------------------------------------------- speech vocabulary */
+/* Any two speakers, factions or sides, compared on the content words of their
+ * speeches. The counts come from scripts/speech_vocabulary.py as a separate
+ * file fetched on first use; the divergence is computed here by rtd.js, which
+ * tests/test_dashboard_rtd.py holds to keyflux's numbers. */
+let VOCAB = null, vocabLoading = null;
+
+function loadVocab() {
+  if (VOCAB) return Promise.resolve(VOCAB);
+  if (!vocabLoading) {
+    vocabLoading = d3.json(DATA.vocabulary.path).then(raw => {
+      const byId = new Map();
+      raw.entities.forEach(e => {
+        let i = 0;
+        e.index = e.gaps.map(g => (i += g));   // gaps -> absolute vocab indices
+        byId.set(e.id, e);
+      });
+      VOCAB = { ...raw, byId, counts: new Map() };
+      return VOCAB;
+    });
+  }
+  return vocabLoading;
+}
+
+function vocabCounts(id) {
+  if (!VOCAB.counts.has(id)) {
+    const e = VOCAB.byId.get(id);
+    VOCAB.counts.set(id, new Map(e.index.map((v, k) => [VOCAB.vocab[v], e.n[k]])));
+  }
+  return VOCAB.counts.get(id);
+}
+
+function vocabName(e) {
+  const S = T.vocab;
+  if (e.kind === "side") return S.sides[e.name] || e.name;
+  if (e.kind === "group") return "Fidesz–KDNP";
+  if (e.kind === "faction") return e.name;
+  return `${e.name} (${e.faction || S.noFaction})`;
+}
+
+function renderVocab() {
+  const section = document.getElementById("vocab-section");
+  if (!DATA || !DATA.vocabulary) { section.classList.add("hidden"); return; }
+  const S = T.vocab, A = T.allotax;
+  document.getElementById("vocab-lede").textContent = S.lede;
+  document.getElementById("vocab-a-label").textContent = S.left;
+  document.getElementById("vocab-b-label").textContent = S.right;
+  document.getElementById("vocab-swap").setAttribute("aria-label", S.swap);
+  document.getElementById("vocab-diamond-title").textContent = A.diamondTitle;
+  document.getElementById("vocab-shift-title").textContent = A.shiftTitle;
+  document.getElementById("vocab-table-summary").textContent = A.tableSummary;
+  const note = document.getElementById("vocab-caption");
+  if (!VOCAB) note.textContent = S.loading;
+  loadVocab().then(V => {
+    const selA = document.getElementById("vocab-a"), selB = document.getElementById("vocab-b");
+    if (!selA.options.length) {
+      const fill = sel => {
+        ["side", "group", "faction", "person"].forEach(kind => {
+          const og = document.createElement("optgroup");
+          og.label = S.groups[kind];
+          V.entities.filter(e => e.kind === kind).forEach(e => og.appendChild(new Option(vocabName(e), e.id)));
+          sel.appendChild(og);
+        });
+      };
+      fill(selA); fill(selB);
+      const params = new URLSearchParams(location.search);
+      selA.value = V.byId.has(params.get("va")) ? params.get("va") : "faction:TISZA";
+      selB.value = V.byId.has(params.get("vb")) ? params.get("vb") : "faction:Fidesz";
+      const changed = () => {
+        const url = new URL(location.href);
+        url.searchParams.set("va", selA.value); url.searchParams.set("vb", selB.value);
+        history.replaceState(null, "", url);
+        drawVocab();
+      };
+      selA.onchange = changed; selB.onchange = changed;
+      document.getElementById("vocab-swap").onclick = () => {
+        [selA.value, selB.value] = [selB.value, selA.value];
+        changed();
+      };
+    }
+    drawVocab();
+  });
+
+  function drawVocab() {
+    const a = document.getElementById("vocab-a").value, b = document.getElementById("vocab-b").value;
+    const eA = VOCAB.byId.get(a), eB = VOCAB.byId.get(b);
+    const L = { name: vocabName(eA), short: eA.kind === "person" ? eA.name : vocabName(eA) };
+    const R = { name: vocabName(eB), short: eB.kind === "person" ? eB.name : vocabName(eB) };
+    const diamond = document.getElementById("vocab-diamond"), shift = document.getElementById("vocab-shift");
+    const caption = document.getElementById("vocab-caption");
+    if (a === b) {
+      diamond.innerHTML = ""; shift.innerHTML = ""; d3.select("#vocab-table").html("");
+      document.getElementById("vocab-legend").innerHTML = "";
+      caption.textContent = S.same;
+      return;
+    }
+    const alpha = DATA.vocabulary.params.alpha;
+    const result = rtd(vocabCounts(a), vocabCounts(b), alpha);
+    const label = new Map(VOCAB.vocab.map((t, i) => [t, VOCAB.labels[i] || t]));
+    result.types.forEach(t => { t.label = label.get(t.t) || t.t; });
+    const cmp = { divergence: result.divergence, alpha };
+    const share = t => t.contrib / result.divergence * 100;
+    const sideName = t => t.dir === "left" ? L.short : t.dir === "right" ? R.short : "—";
+    const wordTip = t =>
+      `<strong>${t.label}</strong> · ${A.towards(sideName(t))}<br>` +
+      `${L.short}: ${t.c1} ${A.count}, ${A.rank} ${fmt(t.r1, 1)}<br>` +
+      `${R.short}: ${t.c2} ${A.count}, ${A.rank} ${fmt(t.r2, 1)}<br>` +
+      `${A.share}: ${fmt(share(t), 2)}%`;
+    drawAllotaxDiamond(diamond, result.types, cmp, L, R, "var(--series-1)", "var(--series-2)", A, wordTip,
+      document.getElementById("vocab-legend"));
+    const top = result.types.filter(t => t.dir !== "shared").slice(0, 25);
+    drawWordShift(shift, top, share, "var(--series-1)", "var(--series-2)", A, wordTip);
+
+    caption.textContent = S.caption(fmt(result.divergence, 3),
+      { name: L.name, speeches: fmt(eA.speeches, 0), tokens: fmt(eA.tokens, 0) },
+      { name: R.name, speeches: fmt(eB.speeches, 0), tokens: fmt(eB.tokens, 0) });
+    const refs = Object.entries(DATA.vocabulary.reference_rtd).slice(0, 2).map(([pair, v]) =>
+      pair.split("|").map(id => vocabName(VOCAB.byId.get(id))).join(" ↔ ") + " " + fmt(v, 3));
+    document.getElementById("vocab-note").textContent =
+      S.scale(refs) + " " +
+      S.threshold(VOCAB.entities.filter(e => e.kind === "person").length, DATA.vocabulary.params.min_tokens) +
+      " " + S.computed + " " + S.names;
+
+    const table = d3.select("#vocab-table").html("");
+    table.append("thead").append("tr").selectAll("th").data(A.tableHead).join("th")
+      .text(d => d).style("cursor", "default");
+    table.append("tbody").selectAll("tr").data(top).join("tr").html(t =>
+      `<td>${t.label}</td><td>${sideName(t)}</td><td class="num">${t.c1}</td>` +
+      `<td class="num">${t.c2}</td><td class="num">${fmt(t.r1, 1)}</td>` +
+      `<td class="num">${fmt(t.r2, 1)}</td><td class="num">${fmt(share(t), 2)}%</td>`);
+  }
 }

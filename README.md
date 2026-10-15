@@ -448,10 +448,50 @@ Writes `data/derived/heckles/`:
 interjector but never their party, and only cycle 43 has a speeches export.
 The dashboard states this next to the chart.
 
+## Speech vocabulary — who speaks like whom
+
+```bash
+uv run python scripts/speech_vocabulary.py     # needs speech_metrics.py's lemma cache
+```
+
+Counts content lemmas in every cycle-43 speech, using the same filter and
+stoplist as the heckles plus the honorific `dr.`. It counts per speaker (160
+with at least 300 content words), per faction, for Fidesz–KDNP together, and
+for the government and opposition sides.
+
+It writes counts, not comparisons. With 160 speakers there are about 13,000
+possible pairs, so the dashboard computes rank-turbulence divergence in the
+browser with `dashboard/rtd.js`, a port of keyflux's `rtd`.
+`tests/test_dashboard_rtd.py` holds it to keyflux on 105 random and edge-case
+inputs (it needs node, and is skipped without it). The manifest records
+keyflux's value for four reference pairs:
+
+| pair | RTD |
+| --- | ---: |
+| TISZA ↔ Fidesz | 0.358 |
+| government ↔ opposition | 0.350 |
+| Fidesz ↔ KDNP | 0.392 |
+| Fidesz–KDNP ↔ Mi Hazánk | 0.398 |
+
+Speeches differ about half as much as heckles do: those comparisons run at
+around 0.7.
+
+| decision | default | flag |
+| --- | --- | --- |
+| Speakers offered | ≥ 300 content words (median speaker: 738) | `--min-tokens` |
+| Stopwords | as for heckles, plus `dr.` | `--no-light-verbs` |
+| RTD α | 1/3 | `--alpha` |
+
+Known limitation: surnames that are also common words lemmatise in lowercase
+(`gulyás` for Gulyás Gergely, `jános`). The counts are right; the display is
+not. The fix is the corpus-attested name repair prototyped in notebook 01,
+which has not been promoted yet.
+
 ## The dashboard
 
 ```bash
 uv run python scripts/heckle_content.py        # optional: the allotaxonograph section
+uv run python scripts/speech_vocabulary.py     # optional: the Szókincs tab
 uv run python scripts/build_dashboard_data.py
 python3 -m http.server 8765 --directory dashboard
 ```
@@ -462,6 +502,12 @@ three role-flip comparisons. Its cells use a one-hue maroon ramp, validated as
 an ordinal ramp in light and dark. The two sides take the series colours **by
 position**, not by party, because Fidesz–KDNP sits on both sides of one
 comparison. If `heckle_content.py` has not been run, the section is left out.
+
+The **Szókincs** tab uses the same chart for speeches. Pick any two of: a side,
+Fidesz–KDNP, a faction, or a speaker. The pair goes into the URL
+(`?va=…&vb=…#vocab`), so a comparison can be linked. Its data is a separate
+`data/vocabulary.json` (1.7 MB, 0.45 MB gzipped), fetched only when the tab is
+first opened.
 
 Static page, four views: an MP/party profile, a topic x metric heatmap, the
 interruption network, and a filterable table of all 1,693 speeches.
