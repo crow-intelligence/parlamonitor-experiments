@@ -47,6 +47,9 @@
   --div-pos-2: #c9501f;
   --grid: #e7e5dd;
   --focus: #7a1f1f;
+  /* sequential, one hue (crow maroon), light -> dark; validated as an ordinal
+     ramp against --surface-1: monotone L, adjacent dL >= 0.06, light end 2.14:1 */
+  --seq-1: #d6a39b; --seq-2: #bc7369; --seq-3: #9a463d; --seq-4: #7a1f1f;
 }
 @media (prefers-color-scheme: dark) {
   :root:where(:not([data-theme="light"])) {
@@ -59,6 +62,7 @@
     --div-neg-2: #4b93e8; --div-neg-1: #2c5f9c; --div-mid: #3a3936;
     --div-pos-1: #9c4a22; --div-pos-2: #e0713c;
     --grid: #2b2a27; --focus: #d98a8a;
+    --seq-1: #823a35; --seq-2: #a2564e; --seq-3: #c4786f; --seq-4: #e6a89f;
   }
 }
 :root[data-theme="dark"] {
@@ -71,6 +75,9 @@
   --div-neg-2: #4b93e8; --div-neg-1: #2c5f9c; --div-mid: #3a3936;
   --div-pos-1: #9c4a22; --div-pos-2: #e0713c;
   --grid: #2b2a27; --focus: #d98a8a;
+  /* dark flips the anchor: low counts sit near the surface, high counts glow;
+     validated against --surface-1 #1a1a19, light end 2.16:1 */
+  --seq-1: #823a35; --seq-2: #a2564e; --seq-3: #c4786f; --seq-4: #e6a89f;
 }
 
 * { box-sizing: border-box; }
@@ -143,6 +150,19 @@ footer.about a { color: var(--crow); }
 :root[data-theme="dark"] footer.about a, .dark footer.about a { color: #e2a0a0; }
 .hidden { display: none !important; }
 .axis text { fill: var(--text-muted); font-size: 10.5px; }
+.seg { display: inline-flex; border: 1px solid var(--border); border-radius: 8px;
+  overflow: hidden; flex-wrap: wrap; }
+.seg button { font: inherit; font-size: 13.5px; padding: 7px 13px; border: 0;
+  background: var(--surface-1); color: var(--text-secondary); cursor: pointer; }
+.seg button + button { border-left: 1px solid var(--border); }
+.seg button[aria-checked="true"] { background: var(--surface-2); color: var(--text-primary);
+  font-weight: 600; box-shadow: inset 0 -2px 0 var(--crow); }
+.allotax { display: grid; grid-template-columns: minmax(0, 1.15fr) minmax(0, 1fr);
+  gap: 18px; align-items: start; }
+@media (max-width: 860px) { .allotax { grid-template-columns: 1fr; } }
+.allotax h3 { font-size: 13px; font-weight: 600; margin: 0 0 6px; color: var(--text-secondary); }
+details.table-view { margin-top: 14px; font-size: 13px; }
+details.table-view summary { cursor: pointer; color: var(--text-secondary); }
 .axis path, .axis line { stroke: var(--grid); }
 </style>
 </head>
@@ -302,6 +322,27 @@ footer.about a { color: var(--crow); }
     <div class="card" style="padding:8px"><div id="graph"></div>
       <div class="legend" id="net-legend"></div>
       <p class="note" id="net-caption"></p></div>
+
+    <section id="allotax-section" aria-labelledby="allotax-title">
+      <h2 id="allotax-title">Mit kiabálnak be — és mi változik, ha egy párt átül a másik oldalra?</h2>
+      <p class="lede" id="allotax-lede"></p>
+      <div class="controls">
+        <div class="control"><label id="allotax-switch-label">Összevetés</label>
+          <div class="seg" role="radiogroup" aria-labelledby="allotax-switch-label" id="allotax-switch"></div></div>
+      </div>
+      <div class="card">
+        <p class="note" id="allotax-intro" style="margin:0 0 12px"></p>
+        <div class="allotax">
+          <div><h3 id="allotax-diamond-title"></h3><div id="allotax-diamond"></div>
+            <div class="legend" id="allotax-legend"></div></div>
+          <div><h3 id="allotax-shift-title"></h3><div id="allotax-shift"></div></div>
+        </div>
+        <p class="note" id="allotax-caption"></p>
+        <p class="note" id="allotax-caveat"></p>
+        <details class="table-view"><summary id="allotax-table-summary"></summary>
+          <div class="scroll"><table id="allotax-table"></table></div></details>
+      </div>
+    </section>
   </section>
 
   <!-- --------------------------------------------------------------- about -->
@@ -330,7 +371,14 @@ footer.about a { color: var(--crow); }
       belüli szavak polaritása megfordul, így a <em>nem probléma</em> pozitív.
       A <code>nélkül</code> névutó visszafelé hat, ezt külön kezeljük. Érzelem:
       Ekman hat alapérzelme <strong>Putz Orsolya saját gyűjtéséből</strong>,
-      a szerző engedélyével. Témák: BERTopic huBERT-beágyazásokon.</p>
+      a szerző engedélyével. Témák: BERTopic huBERT-beágyazásokon.
+      Bekiabálások szókincse: a 42. és 43. ciklus közbevetéseiből, a
+      jegyzőkönyvekben ismétlődő, szó szerint másolt blokkok nélkül; a
+      többmondatos bekiabálásokat egészben olvassuk. Az összevetés
+      rangturbulencia-divergenciával (RTD, α = 1/3) és allotaxonográffal
+      készült (Dodds és mtsai.), a <strong>keyflux</strong> csomaggal. A
+      töltelékszavakat a spaCy magyar listája, a segédigék, a megszólítások és
+      az NLTK listájának négy további szava alapján szűrtük.</p>
     <p><strong>Amit ez nem mér.</strong> A szótáralapú mérés minden pontszáma
       visszavezethető a konkrét szavakra, amelyek létrehozták — de a szótár nem
       olvas kontextust. Két korlátot érdemes fejben tartani. A szentimentszótár

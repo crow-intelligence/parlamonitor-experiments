@@ -422,6 +422,35 @@ def build_parties(people: pd.DataFrame, speeches: pd.DataFrame) -> list[dict]:
     return sorted(rows, key=lambda r: -r["n_speeches"])
 
 
+def build_allotaxonographs(derived: Path) -> dict | None:
+    """The heckle role-flip comparisons from ``scripts/heckle_content.py``, slimmed.
+
+    Optional: returns ``None`` when the heckle outputs have not been built, and
+    the dashboard leaves the section out rather than showing an empty chart.
+    Every type is kept -- the diamond needs the whole rank distribution -- but
+    numbers are rounded, which keeps the block to about 190 KB.
+    """
+    path = derived / "heckles" / "allotaxonographs.json"
+    if not path.is_file():
+        print(
+            f"  no {path.name}; skipping the allotaxonographs (run heckle_content.py)"
+        )
+        return None
+    bundle = json.loads(path.read_text(encoding="utf-8"))
+    for record in bundle["comparisons"]:
+        record["divergence"] = round(record["divergence"], 6)
+        record["types"] = [
+            {
+                **t,
+                "r1": round(t["r1"], 1),
+                "r2": round(t["r2"], 1),
+                "contrib": float(f"{t['contrib']:.4g}"),
+            }
+            for t in record["types"]
+        ]
+    return bundle
+
+
 def main(argv: Sequence[str] | None = None) -> int:
     args = parse_args(argv)
     out: Path = args.output_dir
@@ -505,7 +534,8 @@ def main(argv: Sequence[str] | None = None) -> int:
         "scope_note": (
             "Cycle 43 only. Readability, affect, keywords and per-MP reaction "
             "scores need a speeches export, and cycle 43 is the only cycle that "
-            "has one."
+            "has one. The exception is heckle_allotaxonographs, which compares "
+            "the parentheticals of cycles 42 and 43."
         ),
         "affect_method": "dictionary-based (Precognox sentiment; Putz Orsolya emotion)",
         "virtue_construct": (
@@ -522,6 +552,7 @@ def main(argv: Sequence[str] | None = None) -> int:
         "chamber": virtue_totals(speeches),
         "distributions": distributions,
         "network": network,
+        "heckle_allotaxonographs": build_allotaxonographs(args.derived),
         "speeches": json.loads(
             speeches[[c for c in speech_columns if c in speeches.columns]].to_json(
                 orient="records"
