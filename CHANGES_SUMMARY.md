@@ -549,7 +549,15 @@ all**, so the dashboard and every MP-level score are unaffected.
 7. **Emotion channels on heckles.** In this register, *sadness* is 80% *jaj* /
    *baj* and *disgust* is 96% *szégyell* + *ronda*. Report them as what they
    measure here, or drop them for heckles.
-8. **Textual parentheses** (place names, `EU`, county names) are in the
+8. **Stoplist for heckles.** The role-flip analysis now removes stopwords: the
+   project's Task 2 list plus the four words NLTK's Hungarian list genuinely
+   adds. NLTK's other extras are `õ`-for-`ő` encoding errors of words spaCy
+   already has. This cleans the allotaxonograph down to content: *Orbán*,
+   *infláció*, *megszavaz* against *Magyar Péter*, *migráns*, *bocsánat*. It
+   also deletes *van* (*így van*), which was the one bench contrast that held
+   across cycles 39–42. Whether light verbs stay in the list for heckles is a
+   judgement call.
+9. **Textual parentheses** (place names, `EU`, county names) are in the
    parentheticals files as if they were stage directions. Filter them on load,
    or leave them for the exporter.
 
@@ -563,6 +571,7 @@ all**, so the dashboard and every MP-level score are unaffected.
 | Missing tally fields | `null`, never 0 | nb 02 §2b |
 | Stock-heckle identity | casefold + strip punctuation | nb 03 |
 | Keyness | log-likelihood, min freq 5, band ≥ p001 (LL ≥ 10.83), content words only | nb 03 |
+| Stopwords (keyness, RTD, allotaxonograph) | `hungarian_stopwords()` + 4 NLTK words (`első`, `elő`, `először`, `ők`) | nb 03 §4 |
 | RTD | α = 1/3; bootstrap 200 draws, seed 0 | nb 03 §6 |
 | Affect | pooled per bench × cycle; unbalanced Precognox; emotion `min_hits` 5 | nb 03 §7 |
 
