@@ -30,6 +30,7 @@ from __future__ import annotations
 
 import argparse
 import json
+import shutil
 from collections.abc import Sequence
 from datetime import UTC, datetime
 from pathlib import Path
@@ -451,6 +452,34 @@ def build_allotaxonographs(derived: Path) -> dict | None:
     return bundle
 
 
+def ship_vocabulary(derived: Path, out: Path) -> dict | None:
+    """Copy the speech vocabulary next to the bundle; return a pointer to it.
+
+    It travels as its own file (about 1.7 MB, 0.45 MB gzipped) that the page
+    fetches only when the vocabulary view is opened, so the first paint does
+    not wait for it. Returns ``None``, and the view is left out, when
+    ``scripts/speech_vocabulary.py`` has not been run.
+    """
+    source = derived / "vocabulary" / "vocabulary.json"
+    if not source.is_file():
+        print(
+            f"  no {source.name}; skipping the vocabulary view "
+            "(run speech_vocabulary.py)"
+        )
+        return None
+    data = json.loads(source.read_text(encoding="utf-8"))
+    target = out / "vocabulary.json"
+    shutil.copyfile(source, target)
+    return {
+        "path": f"data/{target.name}",
+        "generated_at": data["generated_at"],
+        "source": data["source"],
+        "params": data["params"],
+        "reference_rtd": data["reference_rtd"],
+        "entities": len(data["entities"]),
+    }
+
+
 def main(argv: Sequence[str] | None = None) -> int:
     args = parse_args(argv)
     out: Path = args.output_dir
@@ -553,6 +582,7 @@ def main(argv: Sequence[str] | None = None) -> int:
         "distributions": distributions,
         "network": network,
         "heckle_allotaxonographs": build_allotaxonographs(args.derived),
+        "vocabulary": ship_vocabulary(args.derived, out),
         "speeches": json.loads(
             speeches[[c for c in speech_columns if c in speeches.columns]].to_json(
                 orient="records"

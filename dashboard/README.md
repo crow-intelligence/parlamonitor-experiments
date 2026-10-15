@@ -12,9 +12,16 @@ python3 -m http.server 8765 --directory dashboard
 It must be served over HTTP rather than opened as `file://`, because it fetches
 the bundle.
 
-`data/dashboard.json` (~2.2 MB) is derived and therefore gitignored, like
+`data/dashboard.json` (~3 MB) is derived and therefore gitignored, like
 everything else under `data/derived/`. Rebuild it with the command above; it
 takes a second and needs no models.
+
+A second file, `data/vocabulary.json` (~1.7 MB), backs the Szókincs tab. It is
+fetched only when that tab is first opened, so the first paint never waits for
+it. It holds per-entity word counts, not comparisons. The divergence is
+computed in the page by `rtd.js`, which `tests/test_dashboard_rtd.py` holds to
+keyflux's numbers. Both files are written by `build_dashboard_data.py`. Each
+optional view is left out when its input has not been built.
 
 ## Why these forms
 
