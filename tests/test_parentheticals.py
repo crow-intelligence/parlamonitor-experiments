@@ -6,6 +6,8 @@ from parlamonitor.parentheticals import (
     CYCLES,
     SOFT_HYPHEN,
     LineStats,
+    block_copy_mask,
+    block_dedup,
     collapse_consecutive,
     file_sha256,
     line_stats,
@@ -125,6 +127,52 @@ def test_collapse_is_idempotent(lines):
 @given(st.lists(st.sampled_from(["a", "b", "c"])))
 def test_collapse_preserves_the_set_of_lines(lines):
     assert set(collapse_consecutive(lines)) == set(lines)
+
+
+# --- block copies -----------------------------------------------------------
+
+LINE_POOL = st.sampled_from(["a", "b", "c", "d"])
+
+
+def test_a_block_written_twice_keeps_its_first_copy():
+    block = ["Taps.", "Derültség.", "Taps.", "Zaj.", "Az elnök csenget."]
+    assert block_dedup(block + block + ["Moraj."], window=4) == [*block, "Moraj."]
+
+
+def test_a_window_below_one_is_refused():
+    with pytest.raises(ValueError):
+        block_copy_mask(["a"], window=0)
+
+
+@given(st.lists(LINE_POOL), st.integers(1, 4))
+def test_block_dedup_is_an_order_preserving_subsequence(lines, window):
+    kept = iter(lines)
+    assert all(line in kept for line in block_dedup(lines, window))
+
+
+@given(st.lists(LINE_POOL), st.integers(1, 4))
+def test_every_distinct_line_keeps_its_first_occurrence(lines, window):
+    # A copy repeats an earlier window, so each of its lines occurred earlier;
+    # the first occurrence of a line can therefore never be inside a copy.
+    mask = block_copy_mask(lines, window)
+    first = {line: i for i, line in reversed(list(enumerate(lines)))}
+    assert not any(mask[i] for i in first.values())
+    assert set(block_dedup(lines, window)) == set(lines)
+
+
+@given(st.lists(st.text(min_size=1), unique=True), st.integers(1, 4))
+def test_nothing_is_flagged_without_a_repeated_window(lines, window):
+    assert not any(block_copy_mask(lines, window))
+
+
+@given(st.lists(st.text(min_size=1), unique=True, min_size=4), st.integers(1, 4))
+def test_a_distinct_block_written_twice_comes_back_once(block, window):
+    assert block_dedup(block + block, window) == block
+
+
+@given(st.integers(0, 200))
+def test_a_single_formula_streak_is_never_a_copy(n):
+    assert not any(block_copy_mask(["Taps."] * n, window=1))
 
 
 # --- statistics -------------------------------------------------------------

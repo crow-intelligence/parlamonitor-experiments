@@ -16,6 +16,13 @@ out of the transcripts cannot be settled from the files themselves, so this
 module refuses to choose: :func:`collapse_consecutive` provides the second
 reading and :class:`LineStats` measures the gap between them.
 
+**Cycles 41 and 42 also contain verbatim block copies.** Long stretches of
+those files recur later in the same file -- the 12 December 2018 protest block
+is written out 176 times -- and :func:`block_dedup` removes them. That is a
+third reading, not a replacement for the second: it explains most of cycle
+41's consecutive repeats, which were runs inside the copies, and it finds no
+copies at all in cycles 39, 40 and 43.
+
 **Most lines are not distinct.** 64,052 of 261,935 lines are, corpus-wide,
 which is what makes it affordable to send every distinct line through emtsv
 once and expand the result by count.
@@ -29,6 +36,7 @@ from __future__ import annotations
 import hashlib
 from collections.abc import Sequence
 from dataclasses import dataclass
+from itertools import groupby
 from pathlib import Path
 
 from parlamonitor.loading import DATA_RAW
@@ -44,6 +52,15 @@ AGGREGATE_LABEL = "ALL"
 
 SOFT_HYPHEN = "\u00ad"
 """U+00AD, the zero-width hyphenation hint left behind by the PDF extraction."""
+
+BLOCK_WINDOW_RUNS = 10
+"""Runs of identical lines a stretch must span to count as a copied block.
+
+Chosen on the corpus, not guessed: at 10 runs the detector flags 0, 10 and 0
+lines in cycles 39, 40 and 43, which hold no copies, while windows of 12 or
+more change cycles 41 and 42 by under 1%. At 4 runs it would remove 2,235
+genuine lines from cycle 40. See ``notebooks/01_parentheticals_data_repairs``.
+"""
 
 NORMALISATION_VERSION = "strip-soft-hyphen-1"
 """Identifier for the normalisation applied before analysis, for cache keys.
@@ -223,6 +240,95 @@ def collapse_consecutive(lines: Sequence[str]) -> list[str]:
         []
     """
     return [line for i, line in enumerate(lines) if i == 0 or line != lines[i - 1]]
+
+
+def block_copy_mask(
+    lines: Sequence[str], window: int = BLOCK_WINDOW_RUNS
+) -> list[bool]:
+    """Flag every line that sits inside a later verbatim copy of an earlier block.
+
+    The lines are run-length encoded first, so ``Taps.`` three times is one
+    unit, ``("Taps.", 3)``. A window of ``window`` consecutive runs that has
+    already occurred earlier in the same sequence marks all of its lines as a
+    copy. The first occurrence is never flagged.
+
+    Working on runs rather than lines is what makes the result trustworthy. A
+    line-level window has to skip windows made of one repeated line, or every
+    applause streak would look like a copy; but then the runs *inside* a copied
+    block survive, and once the copies are deleted they join into long runs
+    that never existed. On cycle 41 that manufactured a 4,925-line run of
+    ``Bóna Zoltán jelzésére:`` whose longest real run is 45.
+
+    What it cannot see: a copy shorter than ``window`` runs, and a block of a
+    single repeated line (period one), which is indistinguishable from a
+    genuine streak. Both are left in place.
+
+    Args:
+        lines: The lines, in file order.
+        window: Runs a stretch must span to count as a block. Defaults to
+            :data:`BLOCK_WINDOW_RUNS`.
+
+    Returns:
+        One flag per input line; ``True`` marks a copy.
+
+    Raises:
+        ValueError: If ``window`` is below 1.
+
+    Example:
+        A two-run block written twice; the second copy is flagged:
+
+        >>> lines = ["a", "b", "b", "c", "x", "a", "b", "b", "c", "y"]
+        >>> [int(f) for f in block_copy_mask(lines, window=2)]
+        [0, 0, 0, 0, 0, 1, 1, 1, 1, 0]
+
+        A streak of one formula is a single run, never a block:
+
+        >>> any(block_copy_mask(["Taps."] * 50, window=2))
+        False
+
+        A different run length is a different block -- three claps is not two:
+
+        >>> any(block_copy_mask(["a", "b", "b", "x", "a", "b", "b", "b"], window=2))
+        False
+    """
+    if window < 1:
+        raise ValueError(f"window must be at least 1, got {window}")
+    runs = [(line, len(list(group))) for line, group in groupby(lines)]
+    seen: set[tuple[tuple[str, int], ...]] = set()
+    copied = [False] * len(runs)
+    for i in range(len(runs) - window + 1):
+        key = tuple(runs[i : i + window])
+        if key in seen:
+            copied[i : i + window] = [True] * window
+        else:
+            seen.add(key)
+    return [flag for (_, n), flag in zip(runs, copied, strict=True) for _ in range(n)]
+
+
+def block_dedup(lines: Sequence[str], window: int = BLOCK_WINDOW_RUNS) -> list[str]:
+    """Drop the lines :func:`block_copy_mask` flags, keeping every first occurrence.
+
+    The third reading of the corpus, next to the file as it stands and
+    :func:`collapse_consecutive`. It is the one to use when comparing cycle 41
+    or 42 with any other cycle: 54.5% of cycle 41's lines and 23.5% of cycle
+    42's are copies, and the other cycles have none.
+
+    Args:
+        lines: The lines, in file order.
+        window: Passed to :func:`block_copy_mask`. Defaults to
+            :data:`BLOCK_WINDOW_RUNS`.
+
+    Returns:
+        The lines with copied blocks removed, in file order.
+
+    Example:
+        >>> block_dedup(["a", "b", "c", "a", "b", "c", "d"], window=3)
+        ['a', 'b', 'c', 'd']
+        >>> block_dedup([])
+        []
+    """
+    mask = block_copy_mask(lines, window)
+    return [line for line, copy in zip(lines, mask, strict=True) if not copy]
 
 
 def line_stats(

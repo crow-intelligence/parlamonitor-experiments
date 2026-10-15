@@ -11,8 +11,11 @@ Pipeline:
    would otherwise be counted as ``jó`` 20,705 times.
 4. Drop punctuation, fit one NPMI phrase model on all cycles pooled, and fuse
    bigrams then trigrams with ``#``.
-5. Count per cycle and pooled, twice: as the files read, and with consecutive
-   duplicate lines collapsed.
+5. Count per cycle and pooled, three times: as the files read, with
+   consecutive duplicate lines collapsed, and with copied blocks removed
+   (:func:`parlamonitor.parentheticals.block_dedup`). The phrase model is
+   fitted on the first view only, so the three differ in counts, never in
+   which tokens exist.
 
 Usage::
 
@@ -47,8 +50,10 @@ from parlamonitor.emtsv import (
 from parlamonitor.frequency import count_tokens, frequency_frame, ngram_order, npmi
 from parlamonitor.parentheticals import (
     AGGREGATE_LABEL,
+    BLOCK_WINDOW_RUNS,
     CYCLES,
     NORMALISATION_VERSION,
+    block_dedup,
     collapse_consecutive,
     file_sha256,
     line_stats,
@@ -67,6 +72,20 @@ DELIMITER = "#"
 
 CHECKPOINT = 2000
 """Lines analysed between flushes of the lemma cache."""
+
+
+def _repo_relative(path):
+    """Path as written in the repo, for provenance records that get shared.
+
+    `str(path)` on a resolved path carries the developer's home directory into
+    every artefact built from it. Falls back to the basename when the input
+    genuinely lives outside the checkout.
+    """
+    path = Path(path).resolve()
+    try:
+        return str(path.relative_to(ROOT))
+    except ValueError:
+        return path.name
 
 
 def parse_args(argv: Sequence[str] | None = None) -> argparse.Namespace:
@@ -103,6 +122,12 @@ def parse_args(argv: Sequence[str] | None = None) -> argparse.Namespace:
         help="leave emMorph's party-name analyses as they are",
     )
     parser.add_argument("--refresh-cache", action="store_true")
+    parser.add_argument(
+        "--block-window",
+        type=int,
+        default=BLOCK_WINDOW_RUNS,
+        help="runs a stretch must span to count as a copied block (dedup view)",
+    )
     return parser.parse_args(argv)
 
 
@@ -226,7 +251,13 @@ def line_sentences(
 def tag_index(
     cache: dict[str, list[list[list[str]]]], lines: set[str]
 ) -> dict[str, str]:
-    """Map each lemma to the emMorph main category it most often carried."""
+    """Map each lemma to the emMorph main category it most often carried.
+
+    Ties go to the alphabetically first category. ``Counter.most_common`` would
+    break them by insertion order, and ``lines`` is a set of strings, whose
+    iteration order changes with every process's hash seed -- so 94 tokens'
+    ``pos_category`` used to differ from one run to the next.
+    """
     seen: dict[str, Counter] = {}
     for line in lines:
         for sentence in cache.get(line, []):
@@ -235,7 +266,10 @@ def tag_index(
                     continue
                 category, _ = parse_xpostag(xpostag)
                 seen.setdefault(lemma, Counter())[category or "?"] += 1
-    return {lemma: counts.most_common(1)[0][0] for lemma, counts in seen.items()}
+    return {
+        lemma: min(counts.items(), key=lambda kv: (-kv[1], kv[0]))[0]
+        for lemma, counts in seen.items()
+    }
 
 
 # --------------------------------------------------------------------------
@@ -290,47 +324,61 @@ COLUMN_ORDER = [
     "cycle_total_docs",
     "cycle_total_tokens_collapsed",
     "cycle_total_docs_collapsed",
+    "raw_dedup",
+    "relative_per_million_dedup",
+    "doc_count_dedup",
+    "cycle_total_tokens_dedup",
+    "cycle_total_docs_dedup",
 ]
 
 
 def build_cycle_frame(
     label: str,
     primary: tuple[Counter, Counter, int],
-    collapsed: tuple[Counter, Counter, int],
+    alternates: dict[str, tuple[Counter, Counter, int]],
 ) -> pd.DataFrame:
-    """Merge the as-is and collapsed counts for one cycle into one frame."""
-    frame = frequency_frame(primary[0], primary[1], n_documents=primary[2], cycle=label)
-    other = frequency_frame(
-        collapsed[0], collapsed[1], n_documents=collapsed[2], cycle=label
+    """Merge the as-is counts and each alternate view's counts into one frame.
+
+    ``alternates`` maps a column suffix (``"collapsed"``, ``"dedup"``) to that
+    view's counts; its columns are named ``raw_<suffix>`` and so on.
+    """
+    merged = frequency_frame(
+        primary[0], primary[1], n_documents=primary[2], cycle=label
     )
-    other = other[
-        [
-            "token",
-            "raw",
-            "relative_per_million",
-            "doc_count",
-            "cycle_total_tokens",
-            "cycle_total_docs",
-        ]
-    ].rename(
-        columns={
-            "raw": "raw_collapsed",
-            "relative_per_million": "relative_per_million_collapsed",
-            "doc_count": "doc_count_collapsed",
-            "cycle_total_tokens": "cycle_total_tokens_collapsed",
-            "cycle_total_docs": "cycle_total_docs_collapsed",
-        }
-    )
-    merged = frame.merge(other, on="token", how="left")
-    # A token can only be missing from the collapsed view if every one of its
-    # occurrences was on a repeated line; that is a real zero, not unknown.
-    merged["raw_collapsed"] = merged["raw_collapsed"].fillna(0).astype(int)
-    merged["doc_count_collapsed"] = merged["doc_count_collapsed"].fillna(0).astype(int)
-    merged["relative_per_million_collapsed"] = merged[
-        "relative_per_million_collapsed"
-    ].fillna(0.0)
-    merged["cycle_total_tokens_collapsed"] = collapsed[0].total()
-    merged["cycle_total_docs_collapsed"] = collapsed[2]
+    for suffix, counted in alternates.items():
+        other = frequency_frame(
+            counted[0], counted[1], n_documents=counted[2], cycle=label
+        )
+        other = other[
+            [
+                "token",
+                "raw",
+                "relative_per_million",
+                "doc_count",
+                "cycle_total_tokens",
+                "cycle_total_docs",
+            ]
+        ].rename(
+            columns={
+                "raw": f"raw_{suffix}",
+                "relative_per_million": f"relative_per_million_{suffix}",
+                "doc_count": f"doc_count_{suffix}",
+                "cycle_total_tokens": f"cycle_total_tokens_{suffix}",
+                "cycle_total_docs": f"cycle_total_docs_{suffix}",
+            }
+        )
+        merged = merged.merge(other, on="token", how="left")
+        # A token can only be missing from a reduced view if every one of its
+        # occurrences was on a removed line; that is a real zero, not unknown.
+        merged[f"raw_{suffix}"] = merged[f"raw_{suffix}"].fillna(0).astype(int)
+        merged[f"doc_count_{suffix}"] = (
+            merged[f"doc_count_{suffix}"].fillna(0).astype(int)
+        )
+        merged[f"relative_per_million_{suffix}"] = merged[
+            f"relative_per_million_{suffix}"
+        ].fillna(0.0)
+        merged[f"cycle_total_tokens_{suffix}"] = counted[0].total()
+        merged[f"cycle_total_docs_{suffix}"] = counted[2]
     return merged
 
 
@@ -453,51 +501,53 @@ def main(argv: Sequence[str] | None = None) -> int:
         for line, sents in sentences_by_line.items()
     }
 
-    # 5. Count, per cycle and pooled, in both views.
+    # 5. Count, per cycle and pooled, in all three views.
     print("Counting ...")
+    views = {
+        "collapsed": collapse_consecutive,
+        "dedup": lambda lines: block_dedup(lines, args.block_window),
+    }
     frames = []
-    pooled_primary: tuple[Counter, Counter, int] = (Counter(), Counter(), 0)
-    pooled_collapsed: tuple[Counter, Counter, int] = (Counter(), Counter(), 0)
+    pooled: dict[str, tuple[Counter, Counter, int]] = {
+        name: (Counter(), Counter(), 0) for name in ["primary", *views]
+    }
     per_cycle_totals = {}
     for cycle in args.cycles:
         lines = corpus[cycle]
-        primary = count_tokens(fused_by_line[line] for line in lines)
-        collapsed = count_tokens(
-            fused_by_line[line] for line in collapse_consecutive(lines)
+        counted = {"primary": count_tokens(fused_by_line[line] for line in lines)}
+        for name, reduce in views.items():
+            counted[name] = count_tokens(fused_by_line[line] for line in reduce(lines))
+        primary = counted["primary"]
+        frames.append(
+            build_cycle_frame(str(cycle), primary, {n: counted[n] for n in views})
         )
-        frames.append(build_cycle_frame(str(cycle), primary, collapsed))
         per_cycle_totals[cycle] = {
             "tokens": primary[0].total(),
             "documents": primary[2],
             "types": len(primary[0]),
-            "tokens_collapsed": collapsed[0].total(),
-            "documents_collapsed": collapsed[2],
-            "types_collapsed": len(collapsed[0]),
         }
-        for accumulator, counted in (
-            (pooled_primary, primary),
-            (pooled_collapsed, collapsed),
-        ):
-            accumulator[0].update(counted[0])
-            accumulator[1].update(counted[1])
-        pooled_primary = (
-            pooled_primary[0],
-            pooled_primary[1],
-            pooled_primary[2] + primary[2],
-        )
-        pooled_collapsed = (
-            pooled_collapsed[0],
-            pooled_collapsed[1],
-            pooled_collapsed[2] + collapsed[2],
-        )
+        for name in views:
+            per_cycle_totals[cycle][f"tokens_{name}"] = counted[name][0].total()
+            per_cycle_totals[cycle][f"documents_{name}"] = counted[name][2]
+            per_cycle_totals[cycle][f"types_{name}"] = len(counted[name][0])
+        for name, (terms, docs, n_docs) in counted.items():
+            pooled[name][0].update(terms)
+            pooled[name][1].update(docs)
+            pooled[name] = (pooled[name][0], pooled[name][1], pooled[name][2] + n_docs)
         print(
-            f"  cycle {cycle}: {primary[0].total():,} tokens, {len(primary[0]):,} types"
+            f"  cycle {cycle}: {primary[0].total():,} tokens, "
+            f"{len(primary[0]):,} types; "
+            f"block-dedup {counted['dedup'][0].total():,} tokens"
         )
 
-    frames.append(build_cycle_frame(AGGREGATE_LABEL, pooled_primary, pooled_collapsed))
+    frames.append(
+        build_cycle_frame(
+            AGGREGATE_LABEL, pooled["primary"], {n: pooled[n] for n in views}
+        )
+    )
     print(
-        f"  {AGGREGATE_LABEL}: {pooled_primary[0].total():,} tokens, "
-        f"{len(pooled_primary[0]):,} types"
+        f"  {AGGREGATE_LABEL}: {pooled['primary'][0].total():,} tokens, "
+        f"{len(pooled['primary'][0]):,} types"
     )
 
     combined = pd.concat(frames, ignore_index=True)
@@ -533,13 +583,16 @@ def main(argv: Sequence[str] | None = None) -> int:
         "sources": [
             {
                 "cycle": s.cycle,
-                "path": str(s.path),
+                "path": _repo_relative(s.path),
                 "sha256": s.sha256,
                 "n_lines": s.n_lines,
                 "n_words": s.n_words,
                 "n_distinct_lines": s.n_distinct,
                 "n_consecutive_repeats": s.n_consecutive_repeats,
                 "repeat_fraction": round(s.repeat_fraction, 4),
+                "n_lines_block_dedup": len(
+                    block_dedup(corpus[s.cycle], args.block_window)
+                ),
             }
             for s in stats
         ],
@@ -554,6 +607,12 @@ def main(argv: Sequence[str] | None = None) -> int:
             "phrase_passes": len(models),
             "phrase_connector_words": sorted(connectors),
             "phrase_fit_view": "as-is (primary), all cycles pooled",
+            "views": {
+                "raw": "the files as they stand",
+                "collapsed": "runs of identical adjacent lines counted once",
+                "dedup": "verbatim copies of earlier blocks removed (block_dedup)",
+            },
+            "block_window_runs": args.block_window,
             "punctuation": "dropped before phrase detection and counting",
             "proper_noun_repair": repair,
             "proper_noun_entries": sorted(PROPER_NOUN_LEMMAS),
@@ -596,6 +655,13 @@ def verify(
         checks[f"cycle{cycle}_proportion_sums_to_one"] = bool(
             abs(rows["proportion"].sum() - 1.0) < 1e-9
         )
+        checks[f"cycle{cycle}_dedup_sums_to_total"] = bool(
+            rows["raw_dedup"].sum() == totals[cycle]["tokens_dedup"]
+        )
+        # Dedup only removes lines, so no token can gain occurrences.
+        checks[f"cycle{cycle}_dedup_never_exceeds_raw"] = bool(
+            (rows["raw_dedup"] <= rows["raw"]).all()
+        )
     aggregate = combined[combined["cycle"] == AGGREGATE_LABEL].set_index("token")["raw"]
     per_cycle = (
         combined[combined["cycle"] != AGGREGATE_LABEL].groupby("token")["raw"].sum()
@@ -617,6 +683,17 @@ def write_wide(combined: pd.DataFrame, cycles: Sequence[int], out: Path) -> None
         wide[f"raw_{suffix}"] = wide["token"].map(rows["raw"]).fillna(0).astype(int)
         wide[f"rel_{suffix}"] = (
             wide["token"].map(rows["relative_per_million"]).fillna(0.0)
+        )
+    # The block-dedup view, the one to compare cycles on, after the as-is pairs
+    # so existing columns keep their positions.
+    for label in [str(c) for c in cycles] + [AGGREGATE_LABEL]:
+        rows = combined[combined["cycle"] == label].set_index("token")
+        suffix = f"c{label}" if label != AGGREGATE_LABEL else "all"
+        wide[f"dedup_{suffix}"] = (
+            wide["token"].map(rows["raw_dedup"]).fillna(0).astype(int)
+        )
+        wide[f"rel_dedup_{suffix}"] = (
+            wide["token"].map(rows["relative_per_million_dedup"]).fillna(0.0)
         )
     wide = wide.sort_values(["raw_all", "token"], ascending=[False, True])
     wide.to_csv(out / "token_frequencies_wide.csv", index=False, encoding="utf-8")
@@ -697,6 +774,7 @@ def write_ngrams(
         rows = combined[combined["cycle"] == str(cycle)].set_index("token")
         ngrams[f"raw_c{cycle}"] = ngrams["token"].map(rows["raw"]).fillna(0).astype(int)
         columns.append(f"raw_c{cycle}")
+    columns.append("raw_dedup")  # pooled, block copies removed
     ngrams.sort_values(["raw", "token"], ascending=[False, True])[columns].to_csv(
         out / "significant_ngrams.csv", index=False, encoding="utf-8"
     )
@@ -708,7 +786,7 @@ def write_line_stats(stats: list, out: Path) -> None:
         [
             {
                 "cycle": s.cycle,
-                "path": str(s.path),
+                "path": _repo_relative(s.path),
                 "sha256": s.sha256,
                 "n_lines": s.n_lines,
                 "n_words": s.n_words,

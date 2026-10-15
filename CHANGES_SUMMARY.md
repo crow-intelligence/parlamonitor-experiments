@@ -596,3 +596,60 @@ visible.
 - **Emotion lexicon entries are not reproduced.** Only the one or two entries
   that dominate a channel are named, as `lexicon.py` already does, and Putz
   Orsolya is credited in notebook 03.
+
+---
+
+# Task 8 — a block-dedup view in the parentheticals frequency table
+
+Branch `feat/freq-dedup-view`, stacked on `feat/parentheticals-explore`.
+
+**New:** `parentheticals.block_copy_mask` and `parentheticals.block_dedup`,
+promoted from notebook 01. The detector run-length encodes the lines and flags
+any window of 10 runs that already occurred earlier. It has doctests and
+Hypothesis properties:
+- the output is an order-preserving subsequence;
+- every distinct line keeps its first occurrence;
+- a sequence with no repeated window is untouched;
+- a distinct block written twice comes back once;
+- a single-formula streak is never a copy.
+
+**Changed: `scripts/parentheticals_freq.py`.**
+- **A third view.** It counts `raw_dedup` (plus `relative_per_million_dedup`,
+  `doc_count_dedup` and the totals) next to `raw` and `raw_collapsed`, in
+  `token_frequencies.csv`. The wide table gains `dedup_cNN` / `rel_dedup_cNN`,
+  and the n-gram table gains a pooled `raw_dedup`.
+- **Placement.** The new columns are appended, so existing column positions
+  don't move.
+- **Same phrase model.** It is still fitted on the as-is view. Every existing
+  count and rate column is byte-identical to the previous run.
+- **Checks.** Two new invariants per cycle: dedup sums to its total, and no
+  token ever has more dedup occurrences than raw ones.
+
+## Fixed along the way
+
+- **Absolute paths.** `manifest.json` and `line_stats.csv` recorded the
+  developer's home directory in every source path. They now use the
+  repo-relative idiom from `heckle_network.py`.
+- **`pos_category` was nondeterministic.** `tag_index` broke ties between
+  categories by insertion order over a `set` of strings, and Python randomises
+  string hashing per process. Ties now go to the alphabetically first category,
+  and the output is byte-identical across hash seeds. Against the last run, 32
+  tokens' `pos_category` and 3 tokens' `is_content` settled differently. That
+  run was one random draw, not a reference.
+
+## What needs a human call (Task 8)
+
+1. **`REPORT.md` still recommends `raw_collapsed`.** It is gitignored analysis
+   prose, not generated output, so it was not rewritten here. The README now
+   says to use `raw_dedup`. The report's cycle-41 and cycle-42 figures and its
+   duplication section need rewriting from the new columns.
+2. **`--block-window`** defaults to 10 runs. The sensitivity table that
+   justifies it is in notebook 01, §2.
+
+## Left alone deliberately (Task 8)
+
+- **`manifest.json` `command`.** It still records `" ".join(sys.argv)`, as
+  d06b2c4 chose to leave it.
+- **Pooled phrase detection.** It still sees the copies, because it is fitted
+  on the as-is view. Refitting on the dedup view would change which n-grams
+  exist, and so every count column. That is a separate decision.
