@@ -793,3 +793,49 @@ dropped now, and the RTDs are unchanged to three decimals.
    is being compared.
 5. **The published site** needs `rtd.js`, the new `app.js` / `index.html`
    and both data files synced by hand.
+
+---
+
+# Task 11 — one source for the published dashboard
+
+Branch `feat/dashboard-site-integration`, stacked on
+`feat/dashboard-speech-allotaxonographs`.
+
+**Why.** The site copy at
+`crow-intelligence.github.io/projects/parlamonitor-dashboard/` was integrated
+by hand after every re-copy, from a checklist in the site repo's
+`docs/generated-pages.md`. A plain `cp` silently destroyed that work. That
+document already named the better fix: put it all in the generator. This is
+that fix.
+
+**Changed: `dashboard/index.html`** now carries everything the site copy added:
+- canonical link, absolute `og:image` with its dimensions, `og:url`,
+  `og:site_name`, `og:locale` and the Twitter tags;
+- the favicons;
+- both JSON-LD blocks. The `Dataset` block is extended for the heckle and
+  speech vocabulary comparisons, and its `TODO-DOI` is kept;
+- the `.ci-header` site bar;
+- the about block as a `<section>`;
+- the GitHub link in "Eszközök".
+
+It also gains `consent.js`, the site's cookie banner. Analytics load only on
+opt-in, as on the other microsites; this was your call. The opening lede no
+longer claims every number is from one cycle, since the heckle comparison uses
+cycle 42.
+
+**New:**
+- **`scripts/sync_site.py`**: mirrors the published file set into the site
+  repo and deletes stale files there. It refuses when the site copy has
+  uncommitted changes, and when anything contains a home-directory path. It
+  never commits.
+- **`make check-site` / `make sync-site`.**
+- **`tests/test_sync_site.py`.**
+
+## What needs a human call (Task 11)
+
+1. **The site repo's checklist is now obsolete for Parlamonitor.** The
+   matching site PR rewrites that section of `docs/generated-pages.md` to say
+   "mirror from upstream, never hand-edit".
+2. **`TODO-DOI`** is still a placeholder in the `Dataset` JSON-LD.
+3. **The meta description** is 152 characters and passes the site's
+   160-character lint. The "215 characters" noted in the site docs is stale.

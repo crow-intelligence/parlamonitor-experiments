@@ -4,12 +4,102 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>Parlamonitor — a 43. ciklus beszédei</title>
+<link rel="canonical" href="https://crowintelligence.org/parlamonitor-dashboard/">
 <meta name="description" content="Interaktív elemzés az Országgyűlés 43. ciklusának 1693 felszólalásáról: olvashatóság, hangulat, érzelmek, témák, kulcsszavak és a bekiabálások hálózata.">
 <meta property="og:title" content="Parlamonitor — a 43. ciklus beszédei">
 <meta property="og:description" content="Olvashatóság, hangulat, érzelmek, témák és bekiabálások 1693 parlamenti felszólalásban.">
 <meta property="og:type" content="website">
-<meta property="og:image" content="assets/og.png">
+<!-- Site integration lives here, in the source, not in the published copy:
+     scripts/sync_site.py mirrors this directory into crow-intelligence.github.io
+     byte for byte, so anything added only over there is overwritten. -->
+<!-- Absolute: social crawlers do not resolve a relative og:image. -->
+<meta property="og:image" content="https://crowintelligence.org/parlamonitor-dashboard/assets/og.png">
+<meta property="og:image:width" content="1200">
+<meta property="og:image:height" content="630">
+<meta property="og:url" content="https://crowintelligence.org/parlamonitor-dashboard/">
+<meta property="og:site_name" content="Crow Intelligence">
+<meta property="og:locale" content="hu_HU">
+<meta name="twitter:card" content="summary_large_image">
+<meta name="twitter:title" content="Parlamonitor — a 43. ciklus beszédei">
+<meta name="twitter:description" content="Olvashatóság, hangulat, érzelmek, témák és bekiabálások 1693 parlamenti felszólalásban.">
+<meta name="twitter:image" content="https://crowintelligence.org/parlamonitor-dashboard/assets/og.png">
 <meta name="theme-color" content="#7a1f1f">
+<link rel="icon" href="https://crowintelligence.org/favicon.ico" sizes="any">
+<link rel="icon" href="https://crowintelligence.org/favicon.svg" type="image/svg+xml">
+<link rel="apple-touch-icon" href="https://crowintelligence.org/apple-touch-icon.png">
+<!-- The site's cookie banner; Google Analytics loads only after an explicit opt-in.
+     Root-relative, so it resolves on crowintelligence.org and is a harmless 404 when
+     the dashboard is served on its own. -->
+<script defer src="/consent.js"></script>
+<script type="application/ld+json">
+{
+  "@context": "https://schema.org",
+  "@type": "Dataset",
+  "@id": "https://crowintelligence.org/parlamonitor-dashboard/#dataset",
+  "name": "Parlamonitor — az Országgyűlés 43. ciklusának felszólalásai",
+  "description": "1693 felszólalás (826 775 szó) az Országgyűlés 43. ciklusának jegyzőkönyveiből, olvashatósági, hangulati, érzelmi, téma- és kulcsszó-annotációval, a 916 névvel jelölt közbeszólásból épített bekiabálás-hálózattal, valamint a felszólalók és a bekiabálások (42–43. ciklus) szókincsének összevetésével.",
+  "url": "https://crowintelligence.org/parlamonitor-dashboard/",
+  "inLanguage": "hu",
+  "creator": {
+    "@id": "https://crowintelligence.org/#organization"
+  },
+  "license": "https://creativecommons.org/licenses/by-nc-sa/4.0/",
+  "isAccessibleForFree": true,
+  "identifier": "TODO-DOI",
+  "measurementTechnique": [
+    "Lemmatisation and sentence splitting with emtsv",
+    "Dependency parsing with HuSpaCy (hu_core_news_md)",
+    "LIX and RIX readability with saphes, Hungarian-calibrated 8-letter threshold",
+    "MATTR lexical diversity, 100-token window",
+    "Mean dependency distance and mean hierarchical depth (Jing & Liu 2015)",
+    "Dictionary-based sentiment (Precognox Hungarian sentiment lexicon)",
+    "Dictionary-based emotion, Ekman six",
+    "BERTopic over huBERT embeddings",
+    "Keyword extraction with TextRank and KeyBERT",
+    "Rank-turbulence divergence and allotaxonometry (Dodds et al. 2020) with keyflux"
+  ],
+  "variableMeasured": [
+    "Readability (LIX, RIX)",
+    "Lexical diversity (MATTR)",
+    "Syntactic complexity (MDD, MHD)",
+    "Loanword ratio",
+    "Sentiment polarity",
+    "Emotion (anger, disgust, fear, joy, sadness, surprise)",
+    "Moral vocabulary salience by virtue",
+    "Topic assignment",
+    "Keywords per topic",
+    "Interruption network in-degree and out-degree",
+    "Heckle vocabulary divergence between benches, cycles 42 and 43",
+    "Speech vocabulary divergence between speakers, factions and sides"
+  ]
+}
+</script>
+<script type="application/ld+json">
+{
+  "@context": "https://schema.org",
+  "@type": "BreadcrumbList",
+  "itemListElement": [
+    {
+      "@type": "ListItem",
+      "position": 1,
+      "name": "Crow Intelligence",
+      "item": "https://crowintelligence.org/"
+    },
+    {
+      "@type": "ListItem",
+      "position": 2,
+      "name": "Projects",
+      "item": "https://crowintelligence.org/projects.html"
+    },
+    {
+      "@type": "ListItem",
+      "position": 3,
+      "name": "Parlamonitor",
+      "item": "https://crowintelligence.org/parlamonitor-dashboard/"
+    }
+  ]
+}
+</script>
 <script src="vendor/d3.v7.min.js"></script>
 
 <style>
@@ -85,6 +175,17 @@ body {
   margin: 0; background: var(--surface-0); color: var(--text-primary);
   font: 15px/1.55 -apple-system, BlinkMacSystemFont, "Segoe UI", Inter, Roboto, sans-serif;
 }
+/* Crow Intelligence site bar. The page is standalone otherwise — a reader
+   arriving from search had no route into the rest of the site. Sits above the
+   project's own maroon header and stays deliberately quieter than it. */
+.ci-header { background: var(--surface-2); border-bottom: 1px solid var(--border);
+  padding: 9px 24px; display: flex; align-items: center; justify-content: space-between;
+  gap: 16px; flex-wrap: wrap; font-size: 12.5px; }
+.ci-header .ci-brand { display: inline-flex; align-items: center; text-decoration: none; }
+.ci-header .ci-brand img { height: 20px; width: auto; display: block; }
+.ci-header nav { display: flex; gap: 16px; align-items: center; flex-wrap: wrap; }
+.ci-header nav a { color: var(--text-secondary); text-decoration: none; }
+.ci-header nav a:hover { color: var(--crow); text-decoration: underline; }
 .skip { position: absolute; left: -9999px; }
 .skip:focus { left: 8px; top: 8px; z-index: 99; background: var(--surface-1);
   padding: 8px 12px; border: 2px solid var(--focus); border-radius: 6px; }
@@ -143,11 +244,11 @@ td.num { text-align: right; font-variant-numeric: tabular-nums; }
   transition: opacity .1s; z-index: 40; max-width: 300px; }
 .chip { display: inline-block; background: var(--surface-2); border-radius: 20px;
   padding: 2px 9px; font-size: 12px; margin: 2px 3px 2px 0; color: var(--text-secondary); }
-footer.about { margin-top: 56px; border-top: 1px solid var(--border); padding-top: 22px;
+section.about { margin-top: 56px; border-top: 1px solid var(--border); padding-top: 22px;
   font-size: 13px; color: var(--text-secondary); }
-footer.about h2 { font-size: 16px; }
-footer.about a { color: var(--crow); }
-:root[data-theme="dark"] footer.about a, .dark footer.about a { color: #e2a0a0; }
+section.about h2 { font-size: 16px; }
+section.about a { color: var(--crow); }
+:root[data-theme="dark"] section.about a, .dark section.about a { color: #e2a0a0; }
 .hidden { display: none !important; }
 .axis text { fill: var(--text-muted); font-size: 10.5px; }
 .seg { display: inline-flex; border: 1px solid var(--border); border-radius: 8px;
@@ -168,6 +269,18 @@ details.table-view summary { cursor: pointer; color: var(--text-secondary); }
 </head>
 <body>
 <a class="skip" href="#main">Ugrás a tartalomra</a>
+<div class="ci-header">
+  <a href="https://crowintelligence.org/" class="ci-brand" aria-label="Crow Intelligence">
+    <img src="https://crowintelligence.org/logos/brand/crow-nav.svg" alt="Crow Intelligence">
+  </a>
+  <nav aria-label="Crow Intelligence">
+    <a href="https://crowintelligence.org/portfolio.html">Portfolio</a>
+    <a href="https://crowintelligence.org/services.html">Services</a>
+    <a href="https://crowintelligence.org/about.html">About</a>
+    <a href="https://blog.crowintelligence.org/">Blog</a>
+    <a href="https://crowintelligence.org/contact.html">Contact</a>
+  </nav>
+</div>
 <header class="site">
   <h1>Parlamonitor — a 43. ciklus beszédei</h1>
   <nav>
@@ -184,8 +297,9 @@ details.table-view summary { cursor: pointer; color: var(--text-secondary); }
   <p class="lede" style="margin-top:22px">
     Az Országgyűlés 43. ciklusának <strong>1693 felszólalása</strong>, négy mérce
     mentén: mennyire nehéz olvasni, milyen hangulatú, miről szól, és milyen
-    reakciót váltott ki a teremből. Minden szám egyetlen ciklusra vonatkozik —
-    csak ehhez létezik beszédexport.
+    reakciót váltott ki a teremből. Minden szám a 43. ciklusra vonatkozik —
+    csak ehhez létezik beszédexport —, kivéve a bekiabálások szókincsének
+    összevetését, amely a 42. ciklus jegyzőkönyvi közbevetéseit is használja.
   </p>
 
   <div class="tabs" role="tablist">
@@ -373,7 +487,7 @@ details.table-view summary { cursor: pointer; color: var(--text-secondary); }
   </section>
 
   <!-- --------------------------------------------------------------- about -->
-  <footer class="about" id="about">
+  <section class="about" id="about">
     <h2>A projektről</h2>
     <p><strong>Adatforrás.</strong> Az Országgyűlés 43. ciklusának jegyzőkönyvei,
       a parlamonitor adatbázisából exportálva (1693 felszólalás, 826 775 szó,
@@ -439,13 +553,14 @@ details.table-view summary { cursor: pointer; color: var(--text-secondary); }
     <p><strong>Eszközök.</strong> emtsv · saphes · keyflux · BERTopic · networkx ·
       D3 v7 · pandas. Az adatfeldolgozás kódja és a részletes módszertani
       jegyzetek a repóban:
-      <code>data/derived/*/REPORT.md</code>.</p>
+      <a href="https://github.com/crow-intelligence/parlamonitor-experiments">parlamonitor-experiments</a>
+      (<code>data/derived/*/REPORT.md</code>).</p>
     <p><strong>Dátum.</strong> Az adatok exportja: 2026. A feldolgozás:
       2026 szeptember.</p>
     <p><strong>Licenc.</strong> CC BY-NC-SA 4.0 ·
       <a href="mailto:hello@crowintelligence.org">hello@crowintelligence.org</a> ·
       Crow Intelligence</p>
-  </footer>
+  </section>
 </main>
 <div class="tip" id="tip" role="status" aria-live="polite"></div>
 <script type="module" src="app.js"></script>

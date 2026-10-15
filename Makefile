@@ -1,4 +1,4 @@
-.PHONY: ci format lint typecheck test verify-model
+.PHONY: ci format lint typecheck test verify-model check-site sync-site
 
 ci: format lint typecheck test verify-model
 
@@ -17,3 +17,13 @@ test:
 # Fails if the saved model no longer matches the hand-authored topic names.
 verify-model:
 	uv run python scripts/verify_topic_model.py
+
+# The published dashboard is a byte-for-byte mirror of dashboard/ in the site
+# repo ($CROW_SITE, default ~/projects/crow-intelligence.github.io). Neither
+# target commits or pushes; publishing stays a PR in the site repo.
+check-site:
+	uv run python scripts/sync_site.py --check
+
+sync-site:
+	uv run python scripts/build_dashboard_data.py
+	uv run python scripts/sync_site.py

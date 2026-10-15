@@ -509,6 +509,12 @@ Fidesz–KDNP, a faction, or a speaker. The pair goes into the URL
 `data/vocabulary.json` (1.7 MB, 0.45 MB gzipped), fetched only when the tab is
 first opened.
 
+Published at <https://crowintelligence.org/parlamonitor-dashboard/> as a
+byte-for-byte mirror of `dashboard/`. Run `make check-site` to see the drift and
+`make sync-site` to mirror it into the site repo, then commit there through a
+PR. All site integration (meta, JSON-LD, site bar, consent) lives in
+`dashboard/index.html`, never in the copy. See `dashboard/README.md`.
+
 Static page, four views: an MP/party profile, a topic x metric heatmap, the
 interruption network, and a filterable table of all 1,693 speeches.
 `dashboard/README.md` covers the form and colour decisions; the short version:
