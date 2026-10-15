@@ -653,3 +653,72 @@ Hypothesis properties:
 - **Pooled phrase detection.** It still sees the copies, because it is fitted
   on the as-is view. Refitting on the dedup view would change which n-grams
   exist, and so every count column. That is a separate decision.
+
+---
+
+# Task 9 — heckle allotaxonographs on the dashboard
+
+Branch `feat/dashboard-heckle-allotaxonographs`, stacked on
+`feat/freq-dedup-view`.
+
+**New:**
+- **`src/parlamonitor/heckles.py`**, promoted from notebook 03:
+  - `quotes_in` / `quotes_in_line` read whole quotes and recover
+    hyphenated-surname interjectors;
+  - `bench_of` / `party_group` attribute a quote to a bench;
+  - `content_lemmas`;
+  - `HECKLE_STOP_EXTRAS`.
+
+  It has doctests and `tests/test_heckles.py`, including Hypothesis checks
+  that reading never raises and every quote is text from its line.
+- **`scripts/heckle_content.py`** writes `data/derived/heckles/`.
+- **A new section in the dashboard's network view.** It has an interactive
+  rank diamond (cells, iso-divergence contours, labelled top contributors), a
+  25-word word shift, a 3-way switch, hover on cells and bars, and a table
+  view. It works in light and dark, and its strings sit in `T.allotax`.
+
+**Changed:**
+- `build_dashboard_data.py` adds a `heckle_allotaxonographs` block (≈190 KB)
+  when the heckle outputs exist, and the scope note says so.
+- About section: data, method and stoplist added.
+- Notebook 03 now imports the promoted functions instead of keeping its own
+  copies.
+
+**Verification:**
+- **The script reproduces notebook 03 exactly:** 56,762 quotes; groups of 514
+  / 474 / 733 / 739 quotes; RTD 0.685 / 0.696 / 0.740; bootstrap 95%. Every
+  divergence equals the sum of its contributions, which the script asserts.
+- **Notebook 03 re-executes with unchanged numbers.**
+- **Browser check.** Driven in headless Chrome (Playwright, system Chrome) at
+  1280 px light, 1280 px dark and 600 px:
+  - the three switches, arrow-key switching, and cell and bar tooltips all
+    work;
+  - one bug was found and fixed: the word shift's centre line swallowed the
+    hover at the bars' base;
+  - the only console error is the pre-existing `favicon.ico` 404 of the local
+    page.
+
+## What needs a human call (Task 9)
+
+1. **The published site is not updated.** The copy in
+   `crow-intelligence.github.io/projects/parlamonitor-dashboard` is synced by
+   hand. It needs `app.js`, `index.html` (merge carefully: the published one
+   has extra meta) and `data/dashboard.json`.
+2. **The route caveat is real.** The cycle-42 groups contain unnamed bench
+   heckles only. The cycle-43 groups are mostly named and resolved through the
+   registry. The dashboard says this under the chart. A fair comparison needs
+   speeches exports for cycle 42.
+3. **Light verbs.** The default stoplist removes *van* (*így van*), which was
+   the one bench contrast stable across cycles 39–42. `--no-light-verbs`
+   brings it back.
+4. **Samples are small:** 346–866 content tokens per group. The bootstrap
+   intervals are in the manifest. The dashboard shows the RTD and the token
+   counts on every comparison.
+
+## Left alone deliberately (Task 9)
+
+- **`reactions.py`.** The quote-truncation and hyphenated-name fixes live in
+  `heckles.py` only, so no Task 4 count or published network moves.
+- **Display forms.** Counting is case-folded. For display, each word takes its
+  most frequent spelling (`Gyurcsány`, `KGBéla`), so names don't print in
+  lowercase. The counts are not affected.

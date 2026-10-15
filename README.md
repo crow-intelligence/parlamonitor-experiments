@@ -410,12 +410,58 @@ cycles 41 and 42: more than half of cycle 41's parentheticals, and nearly a
 quarter of cycle 42's, are verbatim copies of earlier blocks. See
 `CHANGES_SUMMARY.md`, Task 7, before comparing those cycles with any other.
 
+## Heckle content — what the hecklers say
+
+```bash
+cp data/derived/explore/quote_lemma_cache.jsonl data/derived/heckles/   # optional: skip emtsv
+uv run python scripts/heckle_content.py
+```
+
+Reads the parentheticals with copied blocks removed (`block_dedup`) and pulls
+out every quoted heckle whole (`parlamonitor.heckles.quotes_in`), including the
+hyphenated-surname interjectors that the Task 4 classifier misses. It
+attributes each heckle to a bench where the note, or the cycle-43 speeches,
+settles it. Then it compares four groups' content vocabulary with
+rank-turbulence divergence:
+
+- TISZA, governing (43)
+- Fidesz–KDNP in opposition (43)
+- Fidesz–KDNP, governing (42)
+- the opposition (42)
+
+Writes `data/derived/heckles/`:
+- `quotes.csv`
+- `group_counts.csv`
+- `allotaxonographs.json` (for the dashboard)
+- `manifest.json`, which includes a 200-draw bootstrap of the role-flip
+  ordering.
+
+| decision | default | flag |
+| --- | --- | --- |
+| View | block-dedup, window 10 runs | `--block-window` |
+| Vocabulary | content words (N, V, Adj, Adv; no pronouns) | — |
+| Stopwords | spaCy hu + light verbs + address terms + 4 repaired NLTK words | `--no-light-verbs` keeps *van*, *mond* … |
+| RTD α | 1/3 | `--alpha` |
+| Bootstrap | 200 draws, seed 0 | `--bootstrap`, `--seed` |
+
+**Cycle-42 groups contain unnamed bench heckles only**: the files name an
+interjector but never their party, and only cycle 43 has a speeches export.
+The dashboard states this next to the chart.
+
 ## The dashboard
 
 ```bash
+uv run python scripts/heckle_content.py        # optional: the allotaxonograph section
 uv run python scripts/build_dashboard_data.py
 python3 -m http.server 8765 --directory dashboard
 ```
+
+The "Ki kit szakított félbe" view also holds the heckle **allotaxonograph**. It
+is a Dodds-style rank diamond with a word-shift chart, switchable between the
+three role-flip comparisons. Its cells use a one-hue maroon ramp, validated as
+an ordinal ramp in light and dark. The two sides take the series colours **by
+position**, not by party, because Fidesz–KDNP sits on both sides of one
+comparison. If `heckle_content.py` has not been run, the section is left out.
 
 Static page, four views: an MP/party profile, a topic x metric heatmap, the
 interruption network, and a filterable table of all 1,693 speeches.
