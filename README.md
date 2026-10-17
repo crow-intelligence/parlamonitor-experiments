@@ -487,11 +487,48 @@ Known limitation: surnames that are also common words lemmatise in lowercase
 not. The fix is the corpus-attested name repair prototyped in notebook 01,
 which has not been promoted yet.
 
+## Applause lines — what earns applause, laughter and heckling
+
+```bash
+uv run python scripts/applause_lines.py      # needs speech_metrics.py's lemma cache
+```
+
+The cycle-43 speech `text` keeps its 4,597 stage directions inline, each one
+right after the words that drew it. `parlamonitor.applause` puts every reaction
+back on that sentence, in the export's own segmentation:
+- 4,577 are placed (99.6%) and 20 are reported as unaligned, never guessed;
+- 914 interrupt their sentence.
+
+Every trigger is asserted to be a verbatim substring of `text_clean`.
+
+Writes `data/derived/applause/`:
+- per-reaction lines with verbatim triggers;
+- a sentence table;
+- line rates per speaker, faction and speech type;
+- rhetorical features against "quiet" sentences, each with both counts and a
+  log-likelihood band;
+- word counts per group (`lines.json`, for the dashboard);
+- a seeded `hand_check.csv` with `checked_by_human=false`.
+
+| decision | default | flag |
+| --- | --- | --- |
+| Closing ritual | after the final sentence, or ritual thanks (*Köszönöm a figyelmet*, a bare *Köszönöm szépen.*): never an applause line | — |
+| Applause line | own-side or unattributed applause | — |
+| Laughter | "with" if from the speaker's own side, "at" if from the other | — |
+| Baseline | sentences followed by no reaction, **salutations excluded** | `--keep-salutations` |
+| Speaker rates | flagged below 100 sentences, not dropped | `--min-sentences` |
+
+**The salutation exclusion matters.** There are 3,228 salutations such as
+*Tisztelt Ház!*. None is ever applauded, and they end in "!". Left in the
+baseline, they made exclamations look *less* likely before applause (0.81×).
+With them out, exclamations are 2.25 times as likely.
+
 ## The dashboard
 
 ```bash
 uv run python scripts/heckle_content.py        # optional: the allotaxonograph section
 uv run python scripts/speech_vocabulary.py     # optional: the Szókincs tab
+uv run python scripts/applause_lines.py        # optional: the Taps és derültség tab
 uv run python scripts/build_dashboard_data.py
 python3 -m http.server 8765 --directory dashboard
 ```

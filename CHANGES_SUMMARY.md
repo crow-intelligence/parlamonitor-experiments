@@ -839,3 +839,82 @@ cycle 42.
 2. **`TODO-DOI`** is still a placeholder in the `Dataset` JSON-LD.
 3. **The meta description** is 152 characters and passes the site's
    160-character lint. The "215 characters" noted in the site docs is stale.
+
+---
+
+# Task 12 — applause lines: what earns applause, laughter and heckling
+
+Branch `feat/applause-lines`, stacked on `feat/dashboard-site-integration`.
+
+**New:**
+- **`src/parlamonitor/applause.py`:**
+  - places each inline reaction on the export sentence it followed, flagging
+    interruptions and the closing ritual;
+  - classifies own and other side;
+  - maps emtsv tokens onto export sentences;
+  - computes the rhetorical features.
+
+  It has doctests and `tests/test_applause.py`, including Hypothesis checks
+  that placements stay in bounds and never move backwards.
+- **`scripts/applause_lines.py`** writes `data/derived/applause/`.
+- **A "Taps és derültség" tab** with four sections:
+  1. three in-browser RTD comparisons (applause ↔ quiet, heckle ↔ quiet,
+     laughing with ↔ at);
+  2. a dot plot of feature rate ratios;
+  3. small multiples of position within the speech, plus the closing-ritual
+     share;
+  4. a per-speaker view with rates against their faction and verbatim best
+     lines.
+
+**Changed:**
+- `heckles.display_spellings` and `SPEECH_STOP_EXTRAS` now live in the module,
+  and `heckle_content.py` and `speech_vocabulary.py` use them. Re-running both
+  against their committed versions gives identical output.
+- `sync_site.py` mirrors `data/lines.json`.
+
+## Findings (cycle 43)
+
+**Placement:**
+- **4,597 reactions:** 4,577 placed, 20 unaligned, and 1,522 (33%) closing
+  ritual.
+- **Lines:** 623 applause sentences, 284 laughing with, 203 laughing at, and
+  1,534 heckled.
+
+**Against 37,830 quiet sentences:**
+
+| feature | applause | laughing with | laughing at | heckle |
+| --- | ---: | ---: | ---: | ---: |
+| ends with "!" | 2.25× | 2.27× | 0.94× (ns) | 2.29× |
+| names the other side | 1.57× | 2.07× | 2.69× | 2.91× |
+| "we" (1st person plural) | 1.27× | 1.07× | 1.19× | 0.91× |
+| ends with "?" | 0.53× | 1.11× | 0.69× | 1.63× |
+
+**Who:**
+- TISZA sentences earn 2.3 applause lines per 100. Fidesz sentences earn 0.4
+  but are heckled most (4.3 per 100) and laughed at most (0.86).
+- Interpellations are almost never applauded (0.03 per 100).
+
+**The hand check.** I read 15 of the 40 sampled rows against the raw text, and
+all 15 placements were right, including the cuts on interruptions. It did
+expose one rule gap: a bare *Köszönöm szépen.* was not treated as ritual. It
+now is, which moved 5 reactions. `hand_check.csv` stays
+`checked_by_human=false` for you.
+
+## What needs a human call (Task 12)
+
+1. **The salutation exclusion** reverses the exclamation finding
+   (0.81× → 2.25×). I'm confident it is right, since salutations are
+   structurally never reacted to, but it is a baseline choice.
+   `--keep-salutations` restores them.
+2. **`OPPONENT_NAMES`** is a deliberately short list: party names plus the
+   main leaders.
+3. **The closing ritual is a rule, not a reading.** A genuine punchline in the
+   last sentence is filed as ritual too.
+4. **Heckle triggers include sentences that were interrupted mid-way.**
+   Features and vocabulary use the whole sentence; the display shows the cut.
+
+## Left alone deliberately (Task 12)
+
+- Reactions after a bare thank-you still count as heckles when they are
+  heckles. Only applause is filtered as ritual.
+- No site PR. `make check-site` will show the drift when you want to publish.

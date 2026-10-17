@@ -39,15 +39,15 @@ import pandas as pd
 import requests
 from keyflux import RankedList, rtd
 
-from parlamonitor.emtsv import EmtsvError, analyse_lines, is_content_word
+from parlamonitor.emtsv import EmtsvError, analyse_lines
 from parlamonitor.heckles import (
     HECKLE_STOP_EXTRAS,
     bench_of,
     content_lemmas,
+    display_spellings,
     quotes_in_line,
 )
 from parlamonitor.interactions import SpeakerRegistry
-from parlamonitor.lexicon import fold
 from parlamonitor.loading import DATA_RAW, load_speeches
 from parlamonitor.parentheticals import (
     BLOCK_WINDOW_RUNS,
@@ -207,25 +207,6 @@ def group_mask(quotes: pd.DataFrame, spec: dict) -> pd.Series:
     return mask
 
 
-def display_forms(cache: dict, quotes: Sequence[str]) -> dict[str, str]:
-    """Map each case-folded lemma to its most frequent spelling, for display.
-
-    Counting folds case, so ``Péter`` and ``péter`` are one type; showing the
-    folded form would print every name in lowercase. Ties go to the
-    alphabetically first spelling.
-    """
-    seen: dict[str, Counter] = {}
-    for quote in quotes:
-        for sentence in cache[quote]:
-            for _, lemma, tag in sentence:
-                if is_content_word(tag):
-                    seen.setdefault(fold(lemma), Counter())[lemma] += 1
-    return {
-        key: min(c.items(), key=lambda kv: (-kv[1], kv[0]))[0]
-        for key, c in seen.items()
-    }
-
-
 def comparison_record(
     left: str, right: str, counts: dict, alpha: float, labels: dict[str, str]
 ) -> dict:
@@ -361,7 +342,7 @@ def main(argv: Sequence[str] | None = None) -> int:
         ]
         print(f"  {spec['label']:34s} {mask.sum():6,} quotes {total.total():7,} tokens")
 
-    labels = display_forms(cache, quotes["quote"].tolist())
+    labels = display_spellings(cache[q] for q in quotes["quote"])
     comparisons = [
         comparison_record(a, b, counts, args.alpha, labels) for a, b in COMPARISONS
     ]

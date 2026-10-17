@@ -50,7 +50,7 @@ TARGET = Path("projects") / "parlamonitor-dashboard"
 PUBLISHED = ("index.html", "app.js", "rtd.js", "README.md", "assets", "vendor")
 """Tracked files and directories that make up the page, relative to ``dashboard/``."""
 
-DATA = ("data/dashboard.json", "data/vocabulary.json")
+DATA = ("data/dashboard.json", "data/vocabulary.json", "data/lines.json")
 """Built by ``scripts/build_dashboard_data.py``; gitignored here, committed there,
 because Pages serves only what is in the repo."""
 

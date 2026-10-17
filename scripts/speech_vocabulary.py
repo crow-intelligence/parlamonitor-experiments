@@ -34,10 +34,13 @@ from pathlib import Path
 
 from keyflux import RankedList, rtd
 
-from parlamonitor.emtsv import is_content_word
-from parlamonitor.heckles import HECKLE_STOP_EXTRAS, content_lemmas
+from parlamonitor.heckles import (
+    HECKLE_STOP_EXTRAS,
+    SPEECH_STOP_EXTRAS,
+    content_lemmas,
+    display_spellings,
+)
 from parlamonitor.interactions import SpeakerRegistry
-from parlamonitor.lexicon import fold
 from parlamonitor.loading import DATA_RAW, load_speeches
 from parlamonitor.parentheticals import file_sha256
 from parlamonitor.reactions import GOVERNING_PARTIES
@@ -48,11 +51,6 @@ DEFAULT_OUTPUT_DIR = ROOT / "data" / "derived" / "vocabulary"
 DEFAULT_LEMMAS = ROOT / "data" / "derived" / "metrics" / "speech_lemmas.jsonl"
 CYCLE = 43
 FIDESZ_KDNP = frozenset({"Fidesz", "KDNP"})
-SPEECH_STOP_EXTRAS: tuple[str, ...] = ("dr.",)
-"""Honorifics the shared stoplist does not have. ``dr.`` is a title, not a
-word, like ``úr`` and ``asszony`` which the address-term list already drops;
-in speeches it is frequent enough to rank among the top contributors."""
-
 REFERENCE_PAIRS: tuple[tuple[str, str], ...] = (
     ("faction:TISZA", "faction:Fidesz"),
     ("side:government", "side:opposition"),
@@ -122,7 +120,7 @@ def main(argv: Sequence[str] | None = None) -> int:
     print("Counting content lemmas per speaker ...")
     per_person: dict[str, Counter] = {}
     person_meta: dict[str, dict] = {}
-    spellings: dict[str, Counter] = {}
+    analyses: list = []
     missing = 0
     with args.lemmas.open(encoding="utf-8") as handle:
         for raw in handle:
@@ -148,10 +146,7 @@ def main(argv: Sequence[str] | None = None) -> int:
                 },
             )
             meta["speeches"] += 1
-            for sentence in record["sentences"]:
-                for _, lemma, tag in sentence:
-                    if is_content_word(tag):
-                        spellings.setdefault(fold(lemma), Counter())[lemma] += 1
+            analyses.append(record["sentences"])
     print(f"  {len(per_person):,} speakers; {missing} lemma records without a speaker")
 
     def pooled(members: list[str]) -> Counter:
@@ -215,11 +210,8 @@ def main(argv: Sequence[str] | None = None) -> int:
     index = {t: i for i, t in enumerate(vocab)}
     # Display spelling only where it differs from the folded lemma ("" = same),
     # which is most words; it saves a third of a megabyte.
-    shown = {
-        t: min(spellings[t].items(), key=lambda kv: (-kv[1], kv[0]))[0]
-        for t in vocab
-        if t in spellings
-    }
+    spellings = display_spellings(analyses)
+    shown = {t: spellings[t] for t in vocab if t in spellings}
     labels = ["" if shown.get(t, t) == t else shown[t] for t in vocab]
     for entity in entities:
         cnt = counts[entity["id"]]
