@@ -129,6 +129,66 @@ const T = {
     names: "A lemmatizáló néhány családnevet közszóként olvas (gulyás, jános), " +
       "ezért ezek kisbetűvel jelennek meg; a számolást ez nem érinti."
   },
+  lines: {
+    kinds: {
+      applause:      { name: "Taps",               short: "taps" },
+      laughter_with: { name: "Nevetés vele",        short: "nevetés vele" },
+      laughter_at:   { name: "Nevetés rajta",       short: "nevetés rajta" },
+      heckle:        { name: "Bekiabálás",          short: "bekiabálás" },
+      quiet:         { name: "Csendes mondatok",    short: "csendes mondat" }
+    },
+    cmpTitle: "Mi vált ki tapsot, nevetést, bekiabálást?",
+    cmpLede: "Minden reakciót visszahelyeztünk arra a mondatra, amely után a " +
+      "jegyzőkönyv rögzítette. Itt e mondatok szókincse áll szemben azokéval, " +
+      "amelyekre semmi sem reagált. A nevetést aszerint bontjuk, hogy a " +
+      "szónok saját oldala nevetett-e (vele) vagy a másik (rajta).",
+    switchLabel: "Összevetés",
+    buttons: {
+      "applause|quiet": "Taps ↔ csend",
+      "heckle|quiet": "Bekiabálás ↔ csend",
+      "laughter_with|laughter_at": "Nevetés vele ↔ rajta"
+    },
+    caption: (rtd, l, r) =>
+      `RTD = ${rtd}. ${l.name}: ${l.sentences} mondat, ${l.tokens} tartalmas szó · ` +
+      `${r.name}: ${r.sentences} mondat, ${r.tokens} tartalmas szó.`,
+    loading: "A mondatadatok betöltése…",
+    featuresTitle: "Milyen mondatra tapsolnak?",
+    featuresLede: "Hányszor gyakoribb egy-egy jellemző a reakciót kiváltó " +
+      "mondatokban, mint a csendesekben. Az 1× vonaltól jobbra: gyakoribb; " +
+      "balra: ritkább. A teli kör szignifikáns eltérést jelöl (p < 0,05), az üres nem.",
+    features: {
+      exclamation: "felkiáltással zárul", question: "kérdéssel zárul",
+      number: "számot tartalmaz", we: "többes szám első személy (mi)",
+      negation: "tagadást tartalmaz", names_opponent: "megnevezi a másik oldalt"
+    },
+    featuresNote: q => `Alap: ${q} csendes mondat, a megszólítások (Tisztelt Ház!) nélkül. ` +
+      "A másik oldal megnevezése: a kormányoldali szónoknál Fidesz, KDNP, Orbán, Mi " +
+      "Hazánk, Toroczkai; az ellenzékinél TISZA és Magyar Péter.",
+    featuresSummary: "Táblázat: a jellemzők gyakorisága",
+    featuresHead: ["reakció", "jellemző", "a reakció előtti mondatokban", "a csendes mondatokban", "arány", "szignifikancia"],
+    ratio: "arány a csendes mondatokhoz",
+    filled: "teli kör: szignifikáns", hollow: "üres kör: nem szignifikáns",
+    positionTitle: "Hol a beszédben?",
+    positionLede: "Melyik szakaszában hangzanak el a reakciót kiváltó mondatok: " +
+      "a beszédet tíz egyenlő részre osztva, 100 mondatra vetítve. A beszéd " +
+      "végi udvariassági tapsot külön számoljuk, mert az a beszédnek szól, nem a mondatnak.",
+    closingKpi: "beszéd végi taps", closingSub: (n, of) => `${n} a ${of} reakcióból`,
+    linesKpi: "mondat utáni reakció", linesSub: n => `${n} mondat a 43. ciklusban`,
+    deciles: ["eleje", "vége"], per100: "100 mondatra",
+    positionNote: "A tengelyek panelenként eltérnek: a bekiabálás nagyságrenddel gyakoribb a nevetésnél.",
+    mpTitle: "Kinek a mondatai?",
+    mpLede: "Egy felszólaló reakciót kiváltó mondatai szó szerint, a jegyzőkönyvből, " +
+      "a legerősebb tapssal kezdve. Mellette, hogy 100 mondatából hány váltott ki " +
+      "reakciót, a frakciója átlagához mérve.",
+    mpLabel: "Felszólaló",
+    fewSentences: "kevés mondat",
+    mpKpi: (kind) => kind,
+    mpSub: (rate, fac) => `frakció: ${fac}`,
+    noBest: "Ennek a felszólalónak kevesebb mint 100 mondata van, ezért nem mutatunk tőle idézetet.",
+    noLines: "nincs ilyen mondata",
+    interrupted: "félbeszakítva",
+    mpNote: min => `A ${min} mondatnál rövidebb életművek aránya zajos, ezért jelöljük őket.`
+  },
   heat: {
     sentiment_polarity: "Hangulat", emotion_anger: "Düh", emotion_joy: "Öröm",
     lix: "LIX", mdd: "MDD", loanword_ratio: "Idegen sz.", mattr: "Szókincs",
@@ -187,6 +247,7 @@ function selectView(view) {
     p.classList.toggle("hidden", p.dataset.panel !== view));
   // The vocabulary view loads its own data file, and only when first opened.
   if (view === "vocab") renderVocab();
+  if (view === "lines") renderLines();
 }
 
 function buildTabs() {
@@ -1291,4 +1352,237 @@ function renderVocab() {
       `<td class="num">${t.c2}</td><td class="num">${fmt(t.r1, 1)}</td>` +
       `<td class="num">${fmt(t.r2, 1)}</td><td class="num">${fmt(share(t), 2)}%</td>`);
   }
+}
+
+
+/* ---------------------------------------------------------- applause lines */
+/* Which sentences earned applause, laughter or heckling. The summary (features,
+ * positions, rates) is in the bundle; the per-group word counts and the best
+ * lines are a side file, fetched when the tab first opens. */
+const LINE_KINDS = ["applause", "laughter_with", "laughter_at", "heckle"];
+const lineColour = kind => SERIES[LINE_KINDS.indexOf(kind)];   // fixed order, never by rank
+let LINES = null, linesLoading = null;
+
+function loadLines() {
+  if (LINES) return Promise.resolve(LINES);
+  if (!linesLoading) {
+    linesLoading = d3.json(DATA.applause.lines_path).then(raw => {
+      const counts = {};
+      Object.entries(raw.groups).forEach(([name, g]) => {
+        let i = 0;
+        counts[name] = new Map(g.gaps.map((gap, k) => [raw.vocab[(i += gap)], g.n[k]]));
+      });
+      const label = new Map(raw.vocab.map((t, i) => [t, raw.labels[i] || t]));
+      LINES = { ...raw, counts, label };
+      return LINES;
+    });
+  }
+  return linesLoading;
+}
+
+function renderLines() {
+  const A = DATA && DATA.applause;
+  if (!A) { document.getElementById("lines").classList.add("hidden"); return; }
+  const S = T.lines;
+  const set = (id, text) => { document.getElementById(id).textContent = text; };
+  set("lines-cmp-title", S.cmpTitle); set("lines-cmp-lede", S.cmpLede);
+  set("lines-switch-label", S.switchLabel);
+  set("lines-diamond-title", T.allotax.diamondTitle); set("lines-shift-title", T.allotax.shiftTitle);
+  set("lines-features-title", S.featuresTitle); set("lines-features-lede", S.featuresLede);
+  set("lines-features-summary", S.featuresSummary);
+  set("lines-position-title", S.positionTitle); set("lines-position-lede", S.positionLede);
+  set("lines-mp-title", S.mpTitle); set("lines-mp-lede", S.mpLede); set("lines-mp-label", S.mpLabel);
+
+  drawLineFeatures(A, S);
+  drawLinePositions(A, S);
+  if (!LINES) set("lines-caption", S.loading);
+  loadLines().then(() => { drawLineComparison(A, S); drawLineSpeaker(A, S); });
+}
+
+function drawLineComparison(A, S) {
+  const ids = Object.keys(S.buttons);
+  if (!state.linesCmp) state.linesCmp = ids[0];
+  const sw = document.getElementById("lines-switch");
+  sw.innerHTML = "";
+  ids.forEach((id, i) => {
+    const b = document.createElement("button");
+    b.type = "button"; b.setAttribute("role", "radio");
+    b.setAttribute("aria-checked", String(id === state.linesCmp));
+    b.tabIndex = id === state.linesCmp ? 0 : -1;
+    b.textContent = S.buttons[id];
+    b.onclick = () => { state.linesCmp = id; drawLineComparison(A, S); };
+    b.onkeydown = e => {
+      const step = { ArrowRight: 1, ArrowDown: 1, ArrowLeft: -1, ArrowUp: -1 }[e.key];
+      if (!step) return;
+      e.preventDefault();
+      state.linesCmp = ids[(i + step + ids.length) % ids.length];
+      drawLineComparison(A, S);
+      sw.querySelector('[aria-checked="true"]').focus();
+    };
+    sw.appendChild(b);
+  });
+  const [left, right] = state.linesCmp.split("|");
+  const result = rtd(LINES.counts[left], LINES.counts[right], A.params.alpha);
+  result.types.forEach(t => { t.label = LINES.label.get(t.t) || t.t; });
+  const L = { name: S.kinds[left].name, short: S.kinds[left].short };
+  const R = { name: S.kinds[right].name, short: S.kinds[right].short };
+  const share = t => t.contrib / result.divergence * 100;
+  const sideName = t => t.dir === "left" ? L.short : t.dir === "right" ? R.short : "—";
+  const X = T.allotax;
+  const wordTip = t =>
+    `<strong>${t.label}</strong> · ${X.towards(sideName(t))}<br>` +
+    `${L.short}: ${t.c1} ${X.count}, ${X.rank} ${fmt(t.r1, 1)}<br>` +
+    `${R.short}: ${t.c2} ${X.count}, ${X.rank} ${fmt(t.r2, 1)}<br>` +
+    `${X.share}: ${fmt(share(t), 2)}%`;
+  drawAllotaxDiamond(document.getElementById("lines-diamond"), result.types,
+    { divergence: result.divergence, alpha: A.params.alpha }, L, R,
+    "var(--series-1)", "var(--series-2)", X, wordTip, document.getElementById("lines-legend"));
+  drawWordShift(document.getElementById("lines-shift"),
+    result.types.filter(t => t.dir !== "shared").slice(0, 25), share,
+    "var(--series-1)", "var(--series-2)", X, wordTip);
+  const sentencesOf = kind => kind === "quiet" ? A.quiet_sentences
+    : (A.features.find(f => f.line_kind === kind) || {}).lines;
+  set("lines-caption", S.caption(fmt(result.divergence, 3),
+    { name: L.name, sentences: fmt(sentencesOf(left), 0), tokens: fmt(LINES.groups[left].tokens, 0) },
+    { name: R.name, sentences: fmt(sentencesOf(right), 0), tokens: fmt(LINES.groups[right].tokens, 0) }));
+  function set(id, text) { document.getElementById(id).textContent = text; }
+}
+
+function drawLineFeatures(A, S) {
+  const host = document.getElementById("lines-features");
+  const rows = A.features.filter(f => f.feature !== "median_words" && f.rate_ratio);
+  const features = Object.keys(S.features);
+  const W = Math.max(320, Math.min(900, host.clientWidth || 760));
+  const labelW = 220, rowH = 34, top = 10, bottom = 38;
+  const H = top + features.length * rowH + bottom;
+  const ratios = rows.map(r => r.rate_ratio);
+  const x = d3.scaleLog().domain([Math.min(0.3, d3.min(ratios)) * 0.9, Math.max(3.5, d3.max(ratios)) * 1.1])
+    .range([labelW, W - 16]);
+  const y = f => top + features.indexOf(f) * rowH + rowH / 2;
+  const svg = d3.select(host).html("").append("svg").attr("viewBox", `0 0 ${W} ${H}`)
+    .attr("width", "100%").attr("role", "img").attr("aria-label", S.featuresTitle);
+  svg.append("g").selectAll("line").data(features).join("line")
+    .attr("x1", labelW).attr("x2", W - 16).attr("y1", y).attr("y2", y)
+    .style("stroke", "var(--grid)");
+  svg.append("line").attr("x1", x(1)).attr("x2", x(1)).attr("y1", top - 4).attr("y2", H - bottom + 4)
+    .style("stroke", "var(--text-muted)").style("stroke-dasharray", "3 3").style("pointer-events", "none");
+  svg.append("g").selectAll("text").data(features).join("text")
+    .attr("x", labelW - 10).attr("y", y).attr("dy", "0.35em").attr("text-anchor", "end")
+    .style("font-size", "12.5px").style("fill", "var(--text-secondary)").text(f => S.features[f]);
+  const dodge = kind => (LINE_KINDS.indexOf(kind) - 1.5) * 6;
+  const significant = r => r.significance && r.significance !== "ns";
+  const cx = r => x(r.rate_ratio), cy = r => y(r.feature) + dodge(r.line_kind);
+  svg.append("g").selectAll("circle").data(rows).join("circle")
+    .attr("cx", cx).attr("cy", cy).attr("r", 5)
+    .style("fill", r => significant(r) ? lineColour(r.line_kind) : "var(--surface-1)")
+    .style("stroke", r => lineColour(r.line_kind)).style("stroke-width", 2)
+    .style("pointer-events", "none");
+  // Hit targets: one band per dot, 20px wide and as tall as its dodge slot, so
+  // neighbouring dots in a row never cover each other's target.
+  svg.append("g").attr("class", "hit").selectAll("rect").data(rows).join("rect")
+    .attr("x", r => cx(r) - 10).attr("y", r => cy(r) - 3).attr("width", 20).attr("height", 6)
+    .style("fill", "transparent")
+    .on("mousemove", (event, r) => showTip(
+      `<strong>${S.kinds[r.line_kind].name}</strong> · ${S.features[r.feature]}<br>` +
+      `${fmt(r.lines_with, 0)} / ${fmt(r.lines, 0)} mondat (${fmt(r.rate_lines * 100, 1)}%) ` +
+      `· csendes: ${fmt(r.quiet_with, 0)} / ${fmt(r.quiet, 0)} (${fmt(r.rate_quiet * 100, 1)}%)<br>` +
+      `${fmt(r.rate_ratio, 2)}× · ${r.significance}`, event))
+    .on("mouseleave", hideTip);
+  const axis = svg.append("g").attr("class", "axis").attr("transform", `translate(0,${H - bottom + 6})`)
+    .call(d3.axisBottom(x).tickValues([0.25, 0.5, 1, 2, 3]).tickFormat(v => fmt(v, 2) + "×").tickSizeOuter(0));
+  axis.select(".domain").remove();
+  svg.append("text").attr("x", x(1)).attr("y", H - 4).attr("text-anchor", "middle")
+    .style("font-size", "10.5px").style("fill", "var(--text-muted)").text(S.ratio);
+
+  document.getElementById("lines-features-legend").innerHTML =
+    LINE_KINDS.map(k => `<span><i class="swatch" style="background:${lineColour(k)};border-radius:50%"></i>${S.kinds[k].name}</span>`).join("") +
+    `<span style="color:var(--text-muted)">${S.filled} · ${S.hollow}</span>`;
+  document.getElementById("lines-features-note").textContent = S.featuresNote(fmt(A.quiet_sentences, 0));
+  const table = d3.select("#lines-features-table").html("");
+  table.append("thead").append("tr").selectAll("th").data(S.featuresHead).join("th").text(d => d).style("cursor", "default");
+  table.append("tbody").selectAll("tr").data(rows).join("tr").html(r =>
+    `<td>${S.kinds[r.line_kind].name}</td><td>${S.features[r.feature]}</td>` +
+    `<td class="num">${fmt(r.lines_with, 0)} / ${fmt(r.lines, 0)}</td>` +
+    `<td class="num">${fmt(r.quiet_with, 0)} / ${fmt(r.quiet, 0)}</td>` +
+    `<td class="num">${fmt(r.rate_ratio, 2)}×</td><td>${r.significance}</td>`);
+}
+
+function drawLinePositions(A, S) {
+  const placed = A.counts.placed, closing = A.counts.closing;
+  document.getElementById("lines-position-kpis").innerHTML =
+    `<div class="kpi"><div class="k">${S.closingKpi}</div><div class="v">${fmt(closing / placed * 100, 0)}%</div>` +
+    `<div class="s">${S.closingSub(fmt(closing, 0), fmt(placed, 0))}</div></div>` +
+    `<div class="kpi"><div class="k">${S.linesKpi}</div><div class="v">${fmt(A.counts.aligned - closing, 0)}</div>` +
+    `<div class="s">${S.linesSub(fmt(A.sentences, 0))}</div></div>`;
+  const host = d3.select("#lines-position").html("");
+  LINE_KINDS.forEach(kind => {
+    const data = A.positions[kind].per_100.map((v, i) => ({ i, v, n: A.positions[kind].lines[i], of: A.positions[kind].sentences[i] }));
+    const panel = host.append("div");
+    panel.append("h3").style("font-size", "13px").style("margin", "0 0 4px").style("display", "flex")
+      .style("align-items", "center").style("gap", "6px")
+      .html(`<i class="swatch" style="background:${lineColour(kind)}"></i>${S.kinds[kind].name}`);
+    const W = 260, H = 130, m = { l: 34, r: 8, t: 8, b: 24 };
+    const x = d3.scaleLinear().domain([0, 9]).range([m.l, W - m.r]);
+    const y = d3.scaleLinear().domain([0, d3.max(data, d => d.v) || 1]).nice().range([H - m.b, m.t]);
+    const svg = panel.append("svg").attr("viewBox", `0 0 ${W} ${H}`).attr("width", "100%")
+      .attr("role", "img").attr("aria-label", `${S.positionTitle}: ${S.kinds[kind].name}`);
+    svg.append("g").attr("class", "axis").attr("transform", `translate(${m.l},0)`)
+      .call(d3.axisLeft(y).ticks(3).tickSize(-(W - m.l - m.r)).tickFormat(v => fmt(v, 1)))
+      .call(g => g.select(".domain").remove());
+    svg.append("g").attr("class", "axis").attr("transform", `translate(0,${H - m.b + 4})`)
+      .call(d3.axisBottom(x).tickValues([0, 9]).tickFormat((v, i) => S.deciles[i]).tickSize(0))
+      .call(g => g.select(".domain").remove())
+      // Anchor the end labels inward, or "vége" is clipped at the panel edge.
+      .call(g => g.selectAll(".tick text").attr("text-anchor", (d, i) => (i ? "end" : "start")));
+    svg.append("path").datum(data).attr("d", d3.line().x(d => x(d.i)).y(d => y(d.v)))
+      .style("fill", "none").style("stroke", lineColour(kind)).style("stroke-width", 2);
+    svg.append("g").selectAll("circle").data(data).join("circle")
+      .attr("cx", d => x(d.i)).attr("cy", d => y(d.v)).attr("r", 4)
+      .style("fill", lineColour(kind)).style("stroke", "var(--surface-1)").style("stroke-width", 2)
+      .on("mousemove", (event, d) => showTip(
+        `<strong>${S.kinds[kind].name}</strong> · ${d.i * 10}–${d.i * 10 + 10}%<br>` +
+        `${fmt(d.n, 0)} / ${fmt(d.of, 0)} mondat · ${fmt(d.v, 2)} ${S.per100}`, event))
+      .on("mouseleave", hideTip);
+  });
+  document.getElementById("lines-position-note").textContent = S.positionNote;
+}
+
+function drawLineSpeaker(A, S) {
+  const sel = document.getElementById("lines-mp");
+  const speakers = A.rates.speaker.slice().sort((a, b) => d3.ascending(a.speaker, b.speaker));
+  if (!sel.options.length) {
+    speakers.forEach(r => sel.appendChild(new Option(
+      `${r.speaker} (${r.faction || T.vocab.noFaction}) — ${fmt(r.sentences, 0)} mondat` +
+      (r.below_min_sentences ? ` · ${S.fewSentences}` : ""), r.speaker_id)));
+    const wanted = new URLSearchParams(location.search).get("lmp");
+    const byId = new Map(speakers.map(r => [r.speaker_id, r]));
+    const first = A.rates.speaker.slice().sort((a, b) => d3.descending(a.sentences, b.sentences))[0];
+    sel.value = byId.has(wanted) ? wanted : byId.has(state.mp) ? state.mp : first.speaker_id;
+    sel.onchange = () => {
+      const url = new URL(location.href); url.searchParams.set("lmp", sel.value);
+      history.replaceState(null, "", url);
+      drawLineSpeaker(A, S);
+    };
+  }
+  const me = speakers.find(r => r.speaker_id === sel.value);
+  const faction = A.rates.faction.find(f => f.faction === me.faction);
+  document.getElementById("lines-mp-kpis").innerHTML = LINE_KINDS.map(kind =>
+    `<div class="kpi"><div class="k"><i class="swatch" style="background:${lineColour(kind)}"></i> ${S.kinds[kind].name}</div>` +
+    `<div class="v">${fmt(me[`${kind}_per_100`], 1)}</div>` +
+    `<div class="s">${fmt(me[kind], 0)} mondat · ${S.mpSub(null, faction ? fmt(faction[`${kind}_per_100`], 1) : "—")}</div></div>`).join("");
+  const best = LINES.best[me.speaker_id];
+  const host = document.getElementById("lines-mp-best");
+  if (!best) { host.innerHTML = `<p class="note">${S.noBest}</p>`; }
+  else {
+    const esc = t => (t || "").replace(/&/g, "&amp;").replace(/</g, "&lt;");
+    host.innerHTML = LINE_KINDS.map(kind => {
+      const items = best[kind] || [];
+      return `<div class="line-group"><h4><i class="swatch" style="background:${lineColour(kind)}"></i>${S.kinds[kind].name}</h4>` +
+        (items.length ? items.map(l =>
+          `<div class="line-quote">„${esc(l.text)}${l.interrupted ? "…" : ""}”` +
+          `<span class="react">(${esc(l.span)})${l.interrupted ? " · " + S.interrupted : ""} · ${l.date} · ${esc(l.speech_type)}</span></div>`).join("")
+          : `<p class="note" style="margin:2px 0 8px">${S.noLines}</p>`) + "</div>";
+    }).join("");
+  }
+  document.getElementById("lines-mp-note").textContent = S.mpNote(A.params.min_sentences);
 }

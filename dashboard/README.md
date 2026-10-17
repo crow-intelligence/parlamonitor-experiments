@@ -16,6 +16,10 @@ the bundle.
 everything else under `data/derived/`. Rebuild it with the command above; it
 takes a second and needs no models.
 
+A third, `data/lines.json` (~0.9 MB), backs the Taps és derültség tab. It holds
+word counts per kind of line and every speaker's best lines, and is also
+fetched on first use.
+
 A second file, `data/vocabulary.json` (~1.7 MB), backs the Szókincs tab. It is
 fetched only when that tab is first opened, so the first paint never waits for
 it. It holds per-entity word counts, not comparisons. The divergence is
@@ -44,7 +48,7 @@ make sync-site    # rebuild the data, then mirror dashboard/ into the site repo
 ```
 
 `scripts/sync_site.py` copies the published set (page, `app.js`, `rtd.js`,
-`vendor/`, `assets/`, both data files) and deletes files the source no longer
+`vendor/`, `assets/`, the three data files) and deletes files the source no longer
 has. It refuses in two cases:
 - the site copy has uncommitted changes, which would be hand edits it
   overwrites;

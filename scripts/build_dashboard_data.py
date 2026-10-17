@@ -480,6 +480,25 @@ def ship_vocabulary(derived: Path, out: Path) -> dict | None:
     }
 
 
+def ship_applause(derived: Path, out: Path) -> dict | None:
+    """The applause-lines summary for the bundle; its word counts as a side file.
+
+    ``summary.json`` (features, positions, rates) goes into the main bundle.
+    ``lines.json`` -- per-group word counts and every speaker's best lines,
+    about 0.9 MB -- is copied next to it and fetched only when the tab opens.
+    Returns ``None``, and the tab is left out, when
+    ``scripts/applause_lines.py`` has not been run.
+    """
+    folder = derived / "applause"
+    if not (folder / "summary.json").is_file():
+        print("  no applause summary; skipping the tab (run applause_lines.py)")
+        return None
+    summary = json.loads((folder / "summary.json").read_text(encoding="utf-8"))
+    shutil.copyfile(folder / "lines.json", out / "lines.json")
+    summary["lines_path"] = "data/lines.json"
+    return summary
+
+
 def main(argv: Sequence[str] | None = None) -> int:
     args = parse_args(argv)
     out: Path = args.output_dir
@@ -583,6 +602,7 @@ def main(argv: Sequence[str] | None = None) -> int:
         "network": network,
         "heckle_allotaxonographs": build_allotaxonographs(args.derived),
         "vocabulary": ship_vocabulary(args.derived, out),
+        "applause": ship_applause(args.derived, out),
         "speeches": json.loads(
             speeches[[c for c in speech_columns if c in speeches.columns]].to_json(
                 orient="records"
