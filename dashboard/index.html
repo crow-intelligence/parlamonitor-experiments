@@ -141,6 +141,9 @@
   /* sequential, one hue (crow maroon), light -> dark; validated as an ordinal
      ramp against --surface-1: monotone L, adjacent dL >= 0.06, light end 2.14:1 */
   --seq-1: #d6a39b; --seq-2: #bc7369; --seq-3: #9a463d; --seq-4: #7a1f1f;
+  /* Élő parlament: who answers. Outside the faction slots so nothing collides;
+     5.3:1 and 10:1 against --surface-1, and told apart by position too. */
+  --flow-own: #6b6a64; --flow-other: #7a1f1f;
 }
 @media (prefers-color-scheme: dark) {
   :root:where(:not([data-theme="light"])) {
@@ -154,6 +157,7 @@
     --div-pos-1: #9c4a22; --div-pos-2: #e0713c;
     --grid: #2b2a27; --focus: #d98a8a;
     --seq-1: #823a35; --seq-2: #a2564e; --seq-3: #c4786f; --seq-4: #e6a89f;
+    --flow-own: #b3b1a7; --flow-other: #e08b84;
   }
 }
 :root[data-theme="dark"] {
@@ -169,6 +173,7 @@
   /* dark flips the anchor: low counts sit near the surface, high counts glow;
      validated against --surface-1 #1a1a19, light end 2.16:1 */
   --seq-1: #823a35; --seq-2: #a2564e; --seq-3: #c4786f; --seq-4: #e6a89f;
+  --flow-own: #b3b1a7; --flow-other: #e08b84;
 }
 
 * { box-sizing: border-box; }
@@ -270,6 +275,32 @@ details.table-view summary { cursor: pointer; color: var(--text-secondary); }
 .line-quote .react { display: block; font-size: 12px; color: var(--text-muted); margin-top: 3px; }
 .line-group h4 { font-size: 12px; text-transform: uppercase; letter-spacing: .06em;
   color: var(--text-muted); margin: 16px 0 4px; display: flex; align-items: center; gap: 6px; }
+.transcript { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 2.3fr) minmax(0, 1fr);
+  column-gap: 18px; font-size: 15px; line-height: 1.6; }
+.transcript .bench-h { font-size: 11px; text-transform: uppercase; letter-spacing: .07em;
+  color: var(--text-muted); padding-bottom: 8px; border-bottom: 1px solid var(--border); margin-bottom: 8px; }
+.transcript .gov { text-align: right; }
+.transcript .say { padding: 3px 0; }
+.transcript .say.reacted { background: var(--surface-2); border-radius: 4px; padding: 3px 6px; margin: 0 -6px; }
+.rnote { font-size: 12.5px; color: var(--text-secondary); margin: 3px 0 6px; line-height: 1.4; }
+.rnote.own { border-right: 3px solid var(--flow-own); padding-right: 7px; }
+.transcript .opp .rnote { border-right: 0; padding-right: 0; }
+.transcript .opp .rnote.own { border-left: 3px solid var(--flow-own); padding-left: 7px; }
+.transcript .opp .rnote.other, .rnote.other { border-left: 3px solid var(--flow-other); padding-left: 7px; }
+.transcript .gov .rnote.other { border-left: 0; padding-left: 0; border-right: 3px solid var(--flow-other); padding-right: 7px; }
+.rnote .who { font-weight: 600; color: var(--text-primary); }
+.rnote .bubble { display: inline-block; background: var(--surface-2); border-radius: 10px; padding: 2px 9px; margin-top: 2px; }
+.rnote.center { font-size: 12px; color: var(--text-muted); border: 0; padding: 0; margin: 2px 0 4px; }
+.cut { color: var(--crow); font-weight: 700; }
+.inline-dir { color: var(--text-muted); font-size: 12.5px; font-style: italic; }
+@media (max-width: 760px) {
+  .transcript { grid-template-columns: 1fr; }
+  .transcript .gov { text-align: left; }
+  .transcript .bench-h.side { display: none; }
+  .transcript .gov .rnote.own, .transcript .gov .rnote.other { border-right: 0; padding-right: 0;
+    border-left: 3px solid var(--flow-own); padding-left: 7px; }
+  .transcript .gov .rnote.other { border-left-color: var(--flow-other); }
+}
 .small-multiples { display: grid; grid-template-columns: repeat(auto-fit, minmax(240px, 1fr)); gap: 16px; }
 .axis path, .axis line { stroke: var(--grid); }
 </style>
@@ -296,6 +327,7 @@ details.table-view summary { cursor: pointer; color: var(--text-secondary); }
     <a href="#network">Bekiabálások</a>
     <a href="#vocab">Szókincs</a>
     <a href="#lines">Taps</a>
+    <a href="#elo">Élő parlament</a>
     <a href="#about">A projektről</a>
   </nav>
   <button class="tab" id="theme" style="color:#f3dede" aria-label="Sötét mód">◐</button>
@@ -316,6 +348,7 @@ details.table-view summary { cursor: pointer; color: var(--text-secondary); }
     <button class="tab" role="tab" aria-selected="false" data-view="network">Ki kit szakított félbe</button>
     <button class="tab" role="tab" aria-selected="false" data-view="vocab">Szókincs</button>
     <button class="tab" role="tab" aria-selected="false" data-view="lines">Taps és derültség</button>
+    <button class="tab" role="tab" aria-selected="false" data-view="elo">Élő parlament</button>
   </div>
 
   <!-- ------------------------------------------------------ profile view -->
@@ -547,6 +580,32 @@ details.table-view summary { cursor: pointer; color: var(--text-secondary); }
     </section>
   </section>
 
+  <!-- ------------------------------------------------- living parliament -->
+  <section id="elo" data-panel="elo" class="hidden">
+    <section id="elo-day-section" style="margin-top:0">
+      <h2 id="elo-day-title"></h2>
+      <p class="lede" id="elo-day-lede"></p>
+      <div class="controls">
+        <div class="control"><label for="elo-day" id="elo-day-label"></label><select id="elo-day"></select></div>
+      </div>
+      <div class="card">
+        <div id="elo-seismo"></div>
+        <div class="legend" id="elo-legend"></div>
+        <p class="note" id="elo-note"></p>
+        <details class="table-view"><summary id="elo-table-summary"></summary>
+          <div class="scroll"><table id="elo-table"></table></div></details>
+      </div>
+    </section>
+    <section id="elo-speech-section">
+      <h2 id="elo-speech-title"></h2>
+      <p class="lede" id="elo-speech-lede"></p>
+      <div class="card">
+        <div id="elo-speech-head" style="margin-bottom:14px"></div>
+        <div class="transcript" id="elo-transcript"></div>
+      </div>
+    </section>
+  </section>
+
   <!-- --------------------------------------------------------------- about -->
   <section class="about" id="about">
     <h2>A projektről</h2>
@@ -588,7 +647,9 @@ details.table-view summary { cursor: pointer; color: var(--text-secondary); }
       amely után elhangzottak (99,6%-uk illeszthető; a többit nem soroljuk be).
       A beszéd végi, udvariassági tapsot és a puszta köszönetet külön
       kezeljük, a megszólításokat (<em>Tisztelt Ház!</em>) pedig kihagytuk az
-      összehasonlítás alapjából.</p>
+      összehasonlítás alapjából. Élő parlament: a reakciók időpontja becslés —
+      a beszéd kezdete és hossza alapján, aszerint, hogy a beszéd szavainak
+      hányad része hangzott el addig a mondatig.</p>
     <p><strong>Amit ez nem mér.</strong> A szótáralapú mérés minden pontszáma
       visszavezethető a konkrét szavakra, amelyek létrehozták — de a szótár nem
       olvas kontextust. Két korlátot érdemes fejben tartani. A szentimentszótár

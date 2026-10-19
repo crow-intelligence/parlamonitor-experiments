@@ -499,6 +499,29 @@ def ship_applause(derived: Path, out: Path) -> dict | None:
     return summary
 
 
+def ship_living(derived: Path, out: Path) -> dict | None:
+    """Copy the per-day files for the "Élő parlament" tab; return their index.
+
+    One file per sitting day (about 8 MB together), fetched one at a time as a
+    reader picks a day. The index of the 19 days is small and goes inline.
+    Returns ``None``, and the tab is left out, when
+    ``scripts/living_parliament.py`` has not been run.
+    """
+    source = derived / "living"
+    if not (source / "index.json").is_file():
+        print("  no living/index.json; skipping the tab (run living_parliament.py)")
+        return None
+    target = out / "living"
+    if target.exists():
+        shutil.rmtree(target)
+    target.mkdir(parents=True)
+    for day in source.glob("20*.json"):
+        shutil.copyfile(day, target / day.name)
+    index = json.loads((source / "index.json").read_text(encoding="utf-8"))
+    index["path"] = "data/living/"
+    return index
+
+
 def main(argv: Sequence[str] | None = None) -> int:
     args = parse_args(argv)
     out: Path = args.output_dir
@@ -603,6 +626,7 @@ def main(argv: Sequence[str] | None = None) -> int:
         "heckle_allotaxonographs": build_allotaxonographs(args.derived),
         "vocabulary": ship_vocabulary(args.derived, out),
         "applause": ship_applause(args.derived, out),
+        "living": ship_living(args.derived, out),
         "speeches": json.loads(
             speeches[[c for c in speech_columns if c in speeches.columns]].to_json(
                 orient="records"

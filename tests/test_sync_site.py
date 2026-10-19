@@ -27,6 +27,7 @@ def source(tmp_path):
         "data/dashboard.json": "{}",
         "data/vocabulary.json": "{}",
         "data/lines.json": "{}",
+        "data/living/2026-07-07.json": "{}",
         "data/scratch.csv": "not published",
     }.items():
         (src / rel).parent.mkdir(parents=True, exist_ok=True)
@@ -70,4 +71,13 @@ def test_a_home_directory_path_is_caught(source):
     )
     assert sync_site.leaked_paths(source, sync_site.published_files(source)) == [
         "data/dashboard.json"
+    ]
+
+
+def test_a_dropped_day_file_is_deleted_from_the_site(source, tmp_path):
+    target = tmp_path / "site"
+    sync_site.apply(sync_site.plan_sync(source, target), source, target)
+    (target / "data" / "living" / "2026-01-01.json").write_text("{}", encoding="utf-8")
+    assert sync_site.plan_sync(source, target).removed == [
+        "data/living/2026-01-01.json"
     ]

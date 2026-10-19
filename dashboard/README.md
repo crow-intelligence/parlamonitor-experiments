@@ -16,6 +16,9 @@ the bundle.
 everything else under `data/derived/`. Rebuild it with the command above; it
 takes a second and needs no models.
 
+`data/living/` (19 files, ~8 MB together) backs the Élő parlament tab. It
+holds one file per sitting day, fetched one at a time as a reader picks a day.
+
 A third, `data/lines.json` (~0.9 MB), backs the Taps és derültség tab. It holds
 word counts per kind of line and every speaker's best lines, and is also
 fetched on first use.
@@ -48,7 +51,7 @@ make sync-site    # rebuild the data, then mirror dashboard/ into the site repo
 ```
 
 `scripts/sync_site.py` copies the published set (page, `app.js`, `rtd.js`,
-`vendor/`, `assets/`, the three data files) and deletes files the source no longer
+`vendor/`, `assets/`, the three data files and `data/living/`) and deletes files the source no longer
 has. It refuses in two cases:
 - the site copy has uncommitted changes, which would be hand edits it
   overwrites;

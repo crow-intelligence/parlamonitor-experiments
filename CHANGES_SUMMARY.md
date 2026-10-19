@@ -935,3 +935,64 @@ now is, which moved 5 reactions. `hand_check.csv` stays
 - Reactions after a bare thank-you still count as heckles when they are
   heckles. Only applause is filtered as ritual.
 - No site PR. `make check-site` will show the drift when you want to publish.
+
+---
+
+# Task 13 — Élő parlament: a sitting day as a conversation (experimental tab)
+
+Branch `feat/living-parliament`, stacked on `feat/applause-lines`.
+
+**Why.** The allotaxonographs are powerful but hard to read without a data
+background. This tab shows the same reactions as what they are: a chamber
+answering a speaker.
+
+**New:**
+- **`src/parlamonitor/living.py`**: the rules for this view.
+  - `reaction_seconds`: an estimated time from the speech's start and length
+    and the share of its words already said.
+  - `bench`: which benches a reaction came from.
+  - `flow`: the speaker's own side responding, or the other side answering
+    back.
+
+  It has doctests and `tests/test_living.py` (Hypothesis: a reaction time
+  always falls inside its speech).
+- **`scripts/living_parliament.py`**: one JSON per sitting day plus an index.
+  Its per-day counts are asserted against `reaction_lines.csv`, and every
+  reaction time is asserted to fall inside its speech.
+- **The "Élő parlament" tab:**
+  - **a seismograph of the day:** speeches as faction-coloured bands, the
+    own side's responses above in neutral ink, the other side's answers below
+    in maroon, and closing applause as faint ticks;
+  - **a living transcript:** reactions in the margin of the benches they came
+    from, heckles as speech bubbles, a ⟋ where a heckle broke in, and
+    directions left inline by the export muted;
+  - a day picker, click-a-band selection, a table view, and a deep link
+    (`?day=…&speech=…#elo`).
+
+**Changed:** `sync_site.py` mirrors `data/living/`, and `build_dashboard_data.py`
+ships it with the 19-day index inline.
+
+**Verification:** `make ci` is green. In headless Chrome at 1280 px light and
+dark and at 600 px:
+- the default day (7 July: 589 reactions, 135 speeches) and 15 June work;
+- Magyar Péter's speech shows 79 margin notes and 20 cut marks;
+- band clicks, tooltips and the deep link work;
+- there are no console errors.
+
+Two layout problems were found and fixed:
+- on a phone, a 2-minute bar was 1 px wide and could not be hovered. Bins now
+  coarsen to at least 4 px, and the note states the minutes per bar;
+- directions the export left inside sentences read as the speaker's words.
+  They are now muted, and the analysis-side fix went to PR #6.
+
+## What needs a human call (Task 13)
+
+1. **Times are estimates.** They assume an even speaking pace within each
+   speech, which the note under the chart says.
+2. **Unattributed reactions.** A bare *Taps.* counts as the speaker's own side,
+   and a bare *Közbeszólás.* as the other side. That is usually right, but it
+   is a rule.
+3. **The x axis is time since the sitting started**, not clock time. The
+   export has no wall-clock start.
+4. **It is experimental.** It is not yet in the About section's method list
+   beyond one sentence, and there is no site PR.
