@@ -564,7 +564,7 @@ uv run python scripts/speech_vocabulary.py     # optional: the Szókincs tab
 uv run python scripts/applause_lines.py        # optional: the Taps és derültség tab
 uv run python scripts/living_parliament.py     # optional: the Élő parlament tab
 uv run python scripts/build_dashboard_data.py
-python3 -m http.server 8765 --directory dashboard
+uv run python scripts/serve_dashboard.py         # or: make serve (no-cache, so reloads see updates)
 ```
 
 The "Ki kit szakított félbe" view also holds the heckle **allotaxonograph**. It

@@ -5,7 +5,7 @@ bundle it fetches.
 
 ```bash
 uv run python scripts/build_dashboard_data.py   # writes data/dashboard.json
-python3 -m http.server 8765 --directory dashboard
+make serve    # or: uv run python scripts/serve_dashboard.py
 # then open http://127.0.0.1:8765/
 ```
 
