@@ -112,6 +112,7 @@ class Placed:
         parties: Parties the note credits.
         audiences: Bench categories the note credits, as strings.
         quote: An interjection's words, when the direction quotes one.
+        interjector: Who said them, when the note names a person.
         span: The direction verbatim, without its parentheses.
         offset: Where the direction's ``(`` sits in ``record["text"]``.
         relative_position: Sentence index over the last index, in [0, 1];
@@ -128,6 +129,7 @@ class Placed:
     parties: frozenset[str]
     audiences: frozenset[str]
     quote: str | None
+    interjector: str | None
     span: str
     offset: int
     relative_position: float | None
@@ -241,6 +243,7 @@ def placed_reactions(record: Mapping[str, Any]) -> list[Placed]:
             and (index == last or bool(CLOSING_FORMULA.match(trigger.strip())))
         )
         quotes = [e.quote for e in events if e.quote]
+        named = [e.speaker for e in events if e.speaker]
         out.append(
             Placed(
                 sentence_index=index,
@@ -251,6 +254,7 @@ def placed_reactions(record: Mapping[str, Any]) -> list[Placed]:
                 parties=frozenset(p for e in events for p in e.parties),
                 audiences=frozenset(a.value for e in events for a in e.audiences),
                 quote=quotes[0] if quotes else None,
+                interjector=named[0] if named else None,
                 span=inner,
                 offset=m.start(),
                 relative_position=(
@@ -390,6 +394,68 @@ def tokens_by_sentence(
     if _nonspace("".join(sentences)) != "".join(rebuilt):
         raise ValueError("emtsv tokens do not rebuild the export's sentences")
     return out
+
+
+def _is_direction(inner: str) -> bool:
+    """Whether a parenthesis holds a stage direction rather than text."""
+    inner = inner.strip()
+    if _CLOCK.match(inner):
+        return True
+    return any(e.kind is not Kind.OTHER for e in events_in(inner))
+
+
+def without_directions(
+    sentence: str, tokens: Sequence[Sequence[str]] = ()
+) -> tuple[str, list[Sequence[str]]]:
+    """Remove stage directions the export left inside a sentence.
+
+    The export's cleaned ``sentences`` are meant to hold none, but 714 of the
+    45,412 cycle-43 sentences (1.6%) still carry one -- *(Pócs János: Csak
+    iskola!) És azt mondta…* -- usually where a heckle broke into the
+    sentence. They concentrate exactly in the sentences that drew a reaction,
+    so left in, a heckler's words would be counted as the speaker's: ``hazudsz``
+    in the heckle vocabulary, an interjector's name as "naming the other
+    side". A parenthesis is removed only when it holds a reaction or a clock
+    stamp; textual parentheses (``13. § (2) bekezdés``) stay.
+
+    Args:
+        sentence: One sentence, verbatim.
+        tokens: Its emtsv tokens (:func:`tokens_by_sentence`), which rebuild it
+            once whitespace is removed. Defaults to none.
+
+    Returns:
+        ``(text, tokens)`` with the directions and the tokens inside them gone.
+
+    Example:
+        >>> text, toks = without_directions(
+        ...     "(Pócs János: Csak iskola!) És azt mondta.",
+        ...     [[w, w, "[/X]"] for w in
+        ...      ["(", "Pócs", "János", ":", "Csak", "iskola", "!", ")",
+        ...       "És", "azt", "mondta", "."]])
+        >>> text, [t[0] for t in toks]
+        ('És azt mondta.', ['És', 'azt', 'mondta', '.'])
+        >>> without_directions("A 13. § (2) bekezdése szerint.")[0]
+        'A 13. § (2) bekezdése szerint.'
+    """
+    spans = [m for m in _SPAN.finditer(sentence) if _is_direction(m.group(1))]
+    if not spans:
+        return sentence, list(tokens)
+    # Direction spans in non-space coordinates, to match tokens against.
+    nonspace_before = [0]
+    for ch in sentence:
+        nonspace_before.append(nonspace_before[-1] + (not ch.isspace()))
+    cuts = [(nonspace_before[m.start()], nonspace_before[m.end()]) for m in spans]
+    kept, seen = [], 0
+    for token in tokens:
+        width = len(_nonspace(token[0]))
+        if not any(a <= seen and seen + width <= b for a, b in cuts):
+            kept.append(token)
+        seen += width
+    stripped = _SPAN.sub(
+        lambda m: "" if _is_direction(m.group(1)) else m.group(0), sentence
+    )
+    text = _SPACE.sub(" ", stripped)
+    return text.strip(), kept
 
 
 def sentence_features(

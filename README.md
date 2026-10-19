@@ -521,7 +521,12 @@ Writes `data/derived/applause/`:
 **The salutation exclusion matters.** There are 3,228 salutations such as
 *Tisztelt Ház!*. None is ever applauded, and they end in "!". Left in the
 baseline, they made exclamations look *less* likely before applause (0.81×).
-With them out, exclamations are 2.25 times as likely.
+With them out, exclamations are 2.26 times as likely.
+
+The export's cleaned sentences still hold 714 stage directions, 1.6% of
+sentences, against the "about 3" its README claims. `without_directions`
+strips them before features and vocabulary, so a heckler's words are never
+counted as the speaker's.
 
 ## The dashboard
 

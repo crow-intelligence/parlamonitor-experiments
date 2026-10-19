@@ -884,9 +884,9 @@ Branch `feat/applause-lines`, stacked on `feat/dashboard-site-integration`.
 
 | feature | applause | laughing with | laughing at | heckle |
 | --- | ---: | ---: | ---: | ---: |
-| ends with "!" | 2.25× | 2.27× | 0.94× (ns) | 2.29× |
-| names the other side | 1.57× | 2.07× | 2.69× | 2.91× |
-| "we" (1st person plural) | 1.27× | 1.07× | 1.19× | 0.91× |
+| ends with "!" | 2.26× | 2.27× | 0.94× (ns) | 2.29× |
+| names the other side | 1.60× | 2.04× | 2.52× | 2.06× |
+| "we" (1st person plural) | 1.28× | 1.06× | 1.17× | 0.89× |
 | ends with "?" | 0.53× | 1.11× | 0.69× | 1.63× |
 
 **Who:**
@@ -903,7 +903,7 @@ now is, which moved 5 reactions. `hand_check.csv` stays
 ## What needs a human call (Task 12)
 
 1. **The salutation exclusion** reverses the exclamation finding
-   (0.81× → 2.25×). I'm confident it is right, since salutations are
+   (0.81× → 2.26×). I'm confident it is right, since salutations are
    structurally never reacted to, but it is a baseline choice.
    `--keep-salutations` restores them.
 2. **`OPPONENT_NAMES`** is a deliberately short list: party names plus the
@@ -912,6 +912,23 @@ now is, which moved 5 reactions. `hand_check.csv` stays
    last sentence is filed as ritual too.
 4. **Heckle triggers include sentences that were interrupted mid-way.**
    Features and vocabulary use the whole sentence; the display shows the cut.
+
+## Fixed after review (Task 12)
+
+- **The export leaves stage directions inside sentences.** Its README says
+  about 3 survive the cleaning. In fact 714 of 45,412 cycle-43 sentences
+  (1.6%) still hold one, 3,800 words in all, for example *(Pócs János: Csak
+  iskola!) És azt mondta…*. They sit in exactly the sentences that drew a
+  reaction, so a heckler's words were being counted as the speaker's.
+  - `applause.without_directions` now removes them, and their tokens, before
+    features and vocabulary. The displayed lines stay verbatim.
+  - The biggest move: "names the other side" before a heckle, from 2.91× to
+    2.06×. The interjector's own name had been matching. Laughing-at moved
+    from 2.69× to 2.52×. Everything else moved by 0.07 or less.
+  - The real fix belongs in the parlamonitor app's exporter. It needs a human
+    call, since the cleaning there is not in this repo.
+- **`Placed.interjector`** now carries the interjector's name, for the next
+  tab's transcript.
 
 ## Left alone deliberately (Task 12)
 

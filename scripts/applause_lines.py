@@ -44,6 +44,7 @@ from parlamonitor.applause import (
     sentence_features,
     side_relation,
     tokens_by_sentence,
+    without_directions,
 )
 from parlamonitor.heckles import (
     HECKLE_STOP_EXTRAS,
@@ -271,7 +272,11 @@ def main(argv: Sequence[str] | None = None) -> int:
                 }
             )
         for i, sentence in enumerate(sentences):
-            features = sentence_features(tokens[i], sentence, side)
+            # The export leaves some directions inside sentences; measure the
+            # speaker's words only, not a heckler's.
+            clean, words = without_directions(sentence, tokens[i])
+            counted["sentences_with_direction"] += clean != sentence
+            features = sentence_features(words, clean, side)
             row = {
                 "uid": record["uid"],
                 "sentence_index": i,
@@ -283,15 +288,15 @@ def main(argv: Sequence[str] | None = None) -> int:
                 "relative_position": i / (len(sentences) - 1)
                 if len(sentences) > 1
                 else 1.0,
-                "salutation": is_salutation(sentence),
+                "salutation": is_salutation(clean),
                 "quiet": i not in any_reaction
-                and (args.keep_salutations or not is_salutation(sentence)),
+                and (args.keep_salutations or not is_salutation(clean)),
                 **features,
             }
             for kind in LINE_KINDS:
                 row[f"is_{kind}"] = kind in followed.get(i, ())
             sentence_rows.append(row)
-            sentence_lemmas[(record["uid"], i)] = content_lemmas([tokens[i]], stop)
+            sentence_lemmas[(record["uid"], i)] = content_lemmas([words], stop)
 
     events = pd.DataFrame(event_rows)
     sentences = pd.DataFrame(sentence_rows)

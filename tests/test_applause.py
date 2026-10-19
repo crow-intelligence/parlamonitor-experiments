@@ -135,3 +135,18 @@ def test_a_bare_thank_you_is_ritual_too():
     )
     [p] = placed_reactions(rec)
     assert p.closing
+
+
+def test_a_heckle_left_inside_a_sentence_is_not_the_speakers_words():
+    from parlamonitor.applause import without_directions
+
+    sentence = "(Magyar Péter: Hazudsz!) Ezt mondtuk a választóknak."
+    tokens = [
+        [w, w, "[/N]"] for w in sentence.replace("(", "( ").replace(")", " )").split()
+    ]
+    clean, words = without_directions(sentence, tokens)
+    assert clean == "Ezt mondtuk a választóknak."
+    assert "Hazudsz!" not in [w[0] for w in words]
+    # The interjector's name no longer reads as the speaker naming the other side.
+    assert sentence_features(words, sentence, "opposition")["names_opponent"]
+    assert not sentence_features(words, clean, "opposition")["names_opponent"]
