@@ -54,6 +54,10 @@ DATA = ("data/dashboard.json", "data/vocabulary.json", "data/lines.json")
 """Built by ``scripts/build_dashboard_data.py``; gitignored here, committed there,
 because Pages serves only what is in the repo."""
 
+DATA_DIRS = ("data/living",)
+"""Built directories, mirrored whole: one file per sitting day for the
+"Élő parlament" tab."""
+
 TEXT_SUFFIXES = {".html", ".js", ".json", ".md", ".css", ".svg", ".txt"}
 HOME_PATH = re.compile(r"/home/[A-Za-z0-9_.-]+/|/Users/[A-Za-z0-9_.-]+/")
 IGNORED_NAMES = {".DS_Store", "__pycache__"}
@@ -99,6 +103,18 @@ def published_files(source: Path) -> list[str]:
                 f"{source / entry} is missing; run scripts/build_dashboard_data.py"
             )
         out.add(entry)
+    for entry in DATA_DIRS:
+        folder = source / entry
+        files = (
+            sorted(f for f in folder.glob("*") if f.is_file())
+            if folder.is_dir()
+            else []
+        )
+        if not files:
+            raise FileNotFoundError(
+                f"{folder} is missing or empty; run scripts/build_dashboard_data.py"
+            )
+        out.update(str(f.relative_to(source)) for f in files)
     return sorted(out)
 
 

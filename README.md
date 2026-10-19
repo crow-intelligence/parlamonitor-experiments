@@ -528,14 +528,43 @@ sentences, against the "about 3" its README claims. `without_directions`
 strips them before features and vocabulary, so a heckler's words are never
 counted as the speaker's.
 
+## Élő parlament — a sitting day as a conversation (experimental)
+
+```bash
+uv run python scripts/living_parliament.py
+```
+
+Writes one JSON per cycle-43 sitting day (19 days, about 8 MB together) to
+`data/derived/living/`. Each holds every speech (start, length, speaker,
+faction, side, sentences) and every reaction placed on its sentence. The rules
+live in `parlamonitor.living`:
+
+- **Time.** Speech start plus length × the share of the speech's words said by
+  the reaction. This is an estimate; the export has no finer timing.
+- **Benches.** The note's own attribution comes first, then a named
+  interjector's side. A note naming neither is left unattributed, not
+  guessed.
+- **Flow.** "Own" is the speaker's benches, or a bare applause or laughter.
+  "Other" is the other benches, or a bare heckle or noise. The bell, the
+  closing ritual and reactions from both sides are neither.
+
+The per-day counts are asserted against `data/derived/applause/reaction_lines.csv`.
+
+The tab has two parts:
+- **a seismograph of the day:** speeches as bands in faction colours, the own
+  side's responses above and the other side's answers below;
+- **a living transcript of the chosen speech:** reactions in the margin of the
+  benches they came from, and a ⟋ where a heckle broke in.
+
 ## The dashboard
 
 ```bash
 uv run python scripts/heckle_content.py        # optional: the allotaxonograph section
 uv run python scripts/speech_vocabulary.py     # optional: the Szókincs tab
 uv run python scripts/applause_lines.py        # optional: the Taps és derültség tab
+uv run python scripts/living_parliament.py     # optional: the Élő parlament tab
 uv run python scripts/build_dashboard_data.py
-python3 -m http.server 8765 --directory dashboard
+uv run python scripts/serve_dashboard.py         # or: make serve (no-cache, so reloads see updates)
 ```
 
 The "Ki kit szakított félbe" view also holds the heckle **allotaxonograph**. It

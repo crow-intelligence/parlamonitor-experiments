@@ -1,4 +1,4 @@
-.PHONY: ci format lint typecheck test verify-model check-site sync-site
+.PHONY: ci format lint typecheck test verify-model check-site sync-site serve
 
 ci: format lint typecheck test verify-model
 
@@ -27,3 +27,8 @@ check-site:
 sync-site:
 	uv run python scripts/build_dashboard_data.py
 	uv run python scripts/sync_site.py
+
+# Local preview. Sends Cache-Control: no-cache, so a reload always picks up a
+# new app.js and new data (plain `python -m http.server` lets browsers keep stale copies).
+serve:
+	uv run python scripts/serve_dashboard.py
