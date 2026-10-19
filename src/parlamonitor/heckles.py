@@ -53,6 +53,15 @@ for heckle content; the list is fixed here rather than read from NLTK because
 NLTK's stopword corpus is downloaded data, absent on a clean install.
 """
 
+SPEECH_STOP_EXTRAS: tuple[str, ...] = ("dr.",)
+"""Honorifics the shared stoplist lacks, dropped from *speech* vocabulary only.
+
+``dr.`` is a title, not a word, like ``úr`` and ``asszony``, which the
+address-term list already drops. In speeches it is frequent enough to rank
+among the top contributors; in heckles it never ranks, so it is not added to
+:data:`HECKLE_STOP_EXTRAS` (which would move published heckle numbers).
+"""
+
 _UPPER = "A-ZÁÉÍÓÖŐÚÜŰ"
 _HYPHENATED = re.compile(
     rf"^(?:(?:[Dd]r|[Ii]d|[Ii]fj|[Öö]zv)\.\s+)?(?:[{_UPPER}][a-záéíóöőúüű]?\.\s+)?"
@@ -298,3 +307,38 @@ def content_lemmas(
             if key not in stopwords and any(ch.isalpha() for ch in key):
                 out.append(key)
     return out
+
+
+def display_spellings(
+    analyses: Iterable[Iterable[Sequence[Sequence[str]]]],
+) -> dict[str, str]:
+    """Map each case-folded content lemma to its most frequent spelling.
+
+    Counting folds case, so ``Péter`` and ``péter`` are one type; displaying the
+    folded form would print every name in lowercase. Ties go to the
+    alphabetically first spelling.
+
+    Args:
+        analyses: emtsv analyses, each a list of sentences of
+            ``(form, lemma, xpostag)`` triples.
+
+    Returns:
+        Folded lemma to display spelling, for every content lemma seen.
+
+    Example:
+        >>> a = [[["Péter", "Péter", "[/N][Nom]"]], [["péter", "péter", "[/N][Nom]"]]]
+        >>> b = [[["Péterrel", "Péter", "[/N][Ins]"]]]
+        >>> display_spellings([a, b])["péter"]
+        'Péter'
+    """
+    seen: dict[str, dict[str, int]] = {}
+    for analysis in analyses:
+        for sentence in analysis:
+            for _, lemma, tag in sentence:
+                if is_content_word(tag):
+                    counts = seen.setdefault(fold(lemma), {})
+                    counts[lemma] = counts.get(lemma, 0) + 1
+    return {
+        key: min(c.items(), key=lambda kv: (-kv[1], kv[0]))[0]
+        for key, c in seen.items()
+    }

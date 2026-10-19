@@ -26,6 +26,7 @@ def source(tmp_path):
         "vendor/d3.js": "d3",
         "data/dashboard.json": "{}",
         "data/vocabulary.json": "{}",
+        "data/lines.json": "{}",
         "data/scratch.csv": "not published",
     }.items():
         (src / rel).parent.mkdir(parents=True, exist_ok=True)
