@@ -14,7 +14,9 @@ tested rather than buried in JavaScript:
 
 from __future__ import annotations
 
+import json
 from collections.abc import Sequence
+from pathlib import Path
 
 from parlamonitor.applause import Placed
 from parlamonitor.reactions import Audience, side_of
@@ -140,3 +142,89 @@ def flow(
     }:
         return "other"
     return None
+
+
+LANES: tuple[tuple[str, str], ...] = (
+    ("support", "own"),
+    ("laugh_with", "own"),
+    ("applause", "own"),
+    ("heckle", "other"),
+    ("heckle_hostile", "other"),
+    ("laugh_at", "other"),
+    ("noise", "other"),
+)
+"""The timeline's lanes, top to bottom, each with the side of the strip it sits
+on. ``own`` lanes are above the speeches, ``other`` lanes below."""
+
+NOISE_KINDS = frozenset({"noise", "uproar", "booing", "whistling"})
+"""The chamber's own negative noise as the note-takers record it: *zaj*,
+*moraj*, *felzúdulás*, *pfújolás*, *füttyszó*."""
+
+
+def load_hostile_words(path: str | Path) -> frozenset[str]:
+    """The reviewed hostile-heckle lemmas, from ``data/labels/``.
+
+    Args:
+        path: ``hostile_heckle_words.json``.
+
+    Returns:
+        The lemmas.
+
+    Raises:
+        ValueError: If the file is not marked ``checked_by_human`` -- the lane
+            is shown only for a list a person has reviewed.
+    """
+    data = json.loads(Path(path).read_text(encoding="utf-8"))
+    if not data.get("checked_by_human"):
+        raise ValueError(f"{path} has not been reviewed (checked_by_human is false)")
+    return frozenset(w["lemma"] for w in data["words"])
+
+
+def hostile_words(quote_lemmas: set[str], words: frozenset[str]) -> list[str]:
+    """The hostile lemmas a heckle's quote contains, sorted.
+
+    Example:
+        >>> hostile_words({"hazudik", "te"}, frozenset({"hazudik", "szégyen"}))
+        ['hazudik']
+    """
+    return sorted(quote_lemmas & words)
+
+
+def lanes(kinds: frozenset[str], direction: str | None, hostile: bool) -> list[str]:
+    """Which timeline lanes a reaction belongs to; several, or none.
+
+    * own side: ``applause``, ``laugh_with``, and ``support`` -- an interjection
+      from the speaker's own benches (*Így van!*);
+    * other side: ``heckle`` or ``heckle_hostile`` (a heckle whose words accuse,
+      shame or insult), and ``laugh_at``;
+    * ``noise`` -- the chamber's negative noise (:data:`NOISE_KINDS`), from
+      wherever it came.
+
+    A reaction with no flow (the bell, the closing ritual, both benches at once)
+    is in no lane except ``noise``; it still appears in the transcript.
+
+    Example:
+        >>> from parlamonitor.applause import placed_reactions
+        >>> p = placed_reactions({"speaker_prefix": None, "text":
+        ...     "Egy. (Derültség és taps a TISZA soraiban.) Kettő.",
+        ...     "sentences": ["Egy.", "Kettő."]})[0]
+        >>> lanes(p.kinds, "own", False)
+        ['laugh_with', 'applause']
+    """
+    heckles = bool(kinds & {"heckling", "interjection"})
+    out = []
+    if direction == "own":
+        if heckles:
+            out.append("support")
+        if "laughter" in kinds:
+            out.append("laugh_with")
+        if "applause" in kinds:
+            out.append("applause")
+    elif direction == "other":
+        if heckles:
+            out.append("heckle_hostile" if hostile else "heckle")
+        if "laughter" in kinds:
+            out.append("laugh_at")
+    if kinds & NOISE_KINDS:
+        out.append("noise")
+    return out

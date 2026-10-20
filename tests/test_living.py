@@ -63,3 +63,51 @@ def test_the_closing_ritual_is_not_a_response():
         ["Egy.", "Köszönöm a figyelmet."],
     )
     assert flow(p, "government", "government") is None
+
+
+def test_a_hostile_heckle_takes_its_own_lane():
+    from parlamonitor.living import lanes
+
+    p = one("Egy. (Közbeszólás a Fidesz soraiból: Hazudsz!) Kettő.", ["Egy.", "Kettő."])
+    assert lanes(p.kinds, "other", True) == ["heckle_hostile"]
+    assert lanes(p.kinds, "other", False) == ["heckle"]
+    # From the speaker's own benches the same note is support, not a heckle.
+    assert lanes(p.kinds, "own", True) == ["support"]
+
+
+def test_noise_is_a_lane_wherever_it_came_from():
+    from parlamonitor.living import lanes
+
+    p = one("Egy. (Felzúdulás a TISZA soraiban.) Kettő.", ["Egy.", "Kettő."])
+    assert "noise" in lanes(p.kinds, "own", False) and "noise" in lanes(
+        p.kinds, None, False
+    )
+
+
+def test_an_unreviewed_hostile_list_is_refused(tmp_path):
+    import json
+
+    import pytest
+
+    from parlamonitor.living import load_hostile_words
+
+    path = tmp_path / "words.json"
+    path.write_text(
+        json.dumps({"checked_by_human": False, "words": []}), encoding="utf-8"
+    )
+    with pytest.raises(ValueError, match="not been reviewed"):
+        load_hostile_words(path)
+
+
+def test_the_committed_hostile_list_loads():
+    from pathlib import Path
+
+    from parlamonitor.living import load_hostile_words
+
+    words = load_hostile_words(
+        Path(__file__).resolve().parents[1]
+        / "data"
+        / "labels"
+        / "hostile_heckle_words.json"
+    )
+    assert {"hazudik", "szégyen", "tolvaj"} <= words and "fúj" not in words

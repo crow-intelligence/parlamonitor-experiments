@@ -292,6 +292,10 @@ details.table-view summary { cursor: pointer; color: var(--text-secondary); }
 .rnote .bubble { display: inline-block; background: var(--surface-2); border-radius: 10px; padding: 2px 9px; margin-top: 2px; }
 .rnote.center { font-size: 12px; color: var(--text-muted); border: 0; padding: 0; margin: 2px 0 4px; }
 .cut { color: var(--crow); font-weight: 700; }
+.rnote.hostile { border-width: 0 0 0 5px; }
+.transcript .gov .rnote.hostile { border-width: 0 5px 0 0; }
+.hostile-tag { font-size: 10.5px; text-transform: uppercase; letter-spacing: .05em; color: var(--text-primary);
+  border: 1px solid var(--flow-other); border-radius: 4px; padding: 0 4px; margin-left: 4px; white-space: nowrap; }
 .inline-dir { color: var(--text-muted); font-size: 12.5px; font-style: italic; }
 @media (max-width: 760px) {
   .transcript { grid-template-columns: 1fr; }
@@ -649,7 +653,10 @@ details.table-view summary { cursor: pointer; color: var(--text-secondary); }
       kezeljük, a megszólításokat (<em>Tisztelt Ház!</em>) pedig kihagytuk az
       összehasonlítás alapjából. Élő parlament: a reakciók időpontja becslés —
       a beszéd kezdete és hossza alapján, aszerint, hogy a beszéd szavainak
-      hányad része hangzott el addig a mondatig.</p>
+      hányad része hangzott el addig a mondatig. Ellenséges bekiabálás: amelyben
+      vádló, megszégyenítő vagy sértő szó áll (például <em>hazudik, szégyen,
+      tolvaj</em>) — 58 szavas, kézzel ellenőrzött lista alapján; a terem zaja
+      a jegyzőkönyv saját bejegyzése (<em>zaj, moraj, felzúdulás</em>).</p>
     <p><strong>Amit ez nem mér.</strong> A szótáralapú mérés minden pontszáma
       visszavezethető a konkrét szavakra, amelyek létrehozták — de a szótár nem
       olvas kontextust. Két korlátot érdemes fejben tartani. A szentimentszótár

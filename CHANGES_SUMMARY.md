@@ -1040,3 +1040,62 @@ network lede, About section and Dataset JSON-LD.
   next `make sync-site` and site PR.
 - **The gitignored hand-written reports** `data/derived/reactions/NETWORK.md`
   and `REPORT.md` still quote 916 / 294 / 41%.
+
+---
+
+# Task 15 — Élő parlament as a score: laughter, hostile heckles and the chamber's noise
+
+Same branch, `feat/living-lanes`.
+
+**Changed.** The seismograph is now labelled lanes rather than two blocks.
+- **Above the speeches** (the speaker's own side): supportive interjection
+  (*Így van!* from their benches), laughing with, applause.
+- **Below** (the other side): heckle, hostile heckle, laughing at, and the
+  chamber's noise (*zaj, moraj, felzúdulás, pfújolás, füttyszó*, from
+  wherever it came).
+
+One ink per side, labels in text colour, each lane on its own scale with its
+maximum printed at the right. In the transcript, hostile heckles carry an
+"ellenséges" tag that names the matched words.
+
+**New:**
+- **`data/labels/hostile_heckle_words.json`**: 58 lemmas in six categories
+  (lying and slander, shame, theft and crime, insults, treason and
+  dictatorship, cowardice and contempt), each with counts in cycle-43 and
+  five-cycle heckles and a verbatim example. Three exclusions are recorded with
+  reasons (*fúj*, *sötét*, *provokál*). **You reviewed and approved it on
+  2026-10-20**, and the file says so (`checked_by_human: true`).
+- **`living.LANES`, `lanes()`, `hostile_words()` and `load_hostile_words()`**,
+  with tests. The loader refuses an unreviewed list.
+
+**Cycle 43, in-speech:**
+
+| lane | reactions |
+| --- | ---: |
+| applause | 638 |
+| laughing with | 335 |
+| support | 234 |
+| heckle | 1,307 |
+| hostile heckle | 61 |
+| laughing at | 224 |
+| noise | 271 |
+
+**Verification:**
+- **Tests:** `make ci` is green.
+- **Browser:** headless Chrome at 1280 px light and dark and at 600 px. Lane
+  tooltips, band clicks and the deep link work, with no console errors.
+- **Spot check:** Magyar Péter's 15 June speech shows 3 hostile tags.
+  *Szégyen!* is tagged; *Tiszta filmszínház!* and *Na most akkor van migráns,
+  vagy nincs?* are not.
+
+## What needs a human call (Task 15)
+
+1. **Dictionary match, not a reading.** The hostile list matches lemmas, so it
+   misses hostility without a listed word, and it would tag *"Nem szégyen ez"*.
+   For short heckles, a reviewed list is more precise than the sentiment
+   dictionaries (which matched 7%), but its recall is modest: 61 of 1,307
+   other-side heckles.
+2. **Lane scales.** Each lane has its own scale, so bar heights compare within
+   a lane, not across lanes. The "max" labels give the absolute numbers.
+3. **Noise lane.** It counts noise from either side. It is almost always from
+   the other side, but it is not filtered.

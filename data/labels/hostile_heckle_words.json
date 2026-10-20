@@ -1,0 +1,429 @@
+{
+  "description": "Lemmas that make a heckle hostile -- accusing, shaming or insulting -- for the 'ellenséges bekiabálás' lane of the Élő parlament tab. Matched against the case-folded emtsv lemmas of a heckle's quote. Every entry occurs in real heckles; counts are distinct quotes containing the lemma.",
+  "source": "candidates checked against heckle quotes: cycle 43 inside speeches, and all five cycles' parentheticals",
+  "checked_by_human": true,
+  "reviewed_by": "zolizoli",
+  "reviewed_on": "2026-10-20",
+  "words": [
+    {
+      "lemma": "hazudik",
+      "category": "lying_slander",
+      "count_cycle43_heckles": 29,
+      "count_all_cycles_heckles": 427,
+      "example": "Hazudsz!"
+    },
+    {
+      "lemma": "hazugság",
+      "category": "lying_slander",
+      "count_cycle43_heckles": 4,
+      "count_all_cycles_heckles": 151,
+      "example": "Ez hazugság!"
+    },
+    {
+      "lemma": "hazudozás",
+      "category": "lying_slander",
+      "count_cycle43_heckles": 1,
+      "count_all_cycles_heckles": 9,
+      "example": "Ocsmány hazudozás, amit művelsz!"
+    },
+    {
+      "lemma": "hazudozó",
+      "category": "lying_slander",
+      "count_cycle43_heckles": 0,
+      "count_all_cycles_heckles": 1,
+      "example": "Hisztérikus! Hisztérikus hazudozó!"
+    },
+    {
+      "lemma": "hazug",
+      "category": "lying_slander",
+      "count_cycle43_heckles": 0,
+      "count_all_cycles_heckles": 12,
+      "example": "A hazug plakátjaitok!"
+    },
+    {
+      "lemma": "rágalmaz",
+      "category": "lying_slander",
+      "count_cycle43_heckles": 3,
+      "count_all_cycles_heckles": 5,
+      "example": "Ne rágalmazzon!"
+    },
+    {
+      "lemma": "rágalom",
+      "category": "lying_slander",
+      "count_cycle43_heckles": 0,
+      "count_all_cycles_heckles": 5,
+      "example": "Ez rágalom!"
+    },
+    {
+      "lemma": "szégyell",
+      "category": "shame",
+      "count_cycle43_heckles": 13,
+      "count_all_cycles_heckles": 215,
+      "example": "Szégyelld magad!"
+    },
+    {
+      "lemma": "szégyen",
+      "category": "shame",
+      "count_cycle43_heckles": 10,
+      "count_all_cycles_heckles": 144,
+      "example": "Szégyen!"
+    },
+    {
+      "lemma": "szégyentelen",
+      "category": "shame",
+      "count_cycle43_heckles": 0,
+      "count_all_cycles_heckles": 1,
+      "example": "Szégyentelen!"
+    },
+    {
+      "lemma": "gyalázat",
+      "category": "shame",
+      "count_cycle43_heckles": 0,
+      "count_all_cycles_heckles": 24,
+      "example": "Amit mi vezettünk be! Szégyen, gyalázat!"
+    },
+    {
+      "lemma": "gyalázatos",
+      "category": "shame",
+      "count_cycle43_heckles": 0,
+      "count_all_cycles_heckles": 2,
+      "example": "Gyalázatos!"
+    },
+    {
+      "lemma": "pofátlan",
+      "category": "shame",
+      "count_cycle43_heckles": 0,
+      "count_all_cycles_heckles": 5,
+      "example": "A pofátlan meggazdagodásokra!"
+    },
+    {
+      "lemma": "pofátlanság",
+      "category": "shame",
+      "count_cycle43_heckles": 0,
+      "count_all_cycles_heckles": 8,
+      "example": "A mai nap után pofátlanság ilyet mondani! Ez szégyen, államtitkár úr."
+    },
+    {
+      "lemma": "felháborító",
+      "category": "shame",
+      "count_cycle43_heckles": 0,
+      "count_all_cycles_heckles": 18,
+      "example": "Egészen felháborító!"
+    },
+    {
+      "lemma": "lop",
+      "category": "theft_crime",
+      "count_cycle43_heckles": 1,
+      "count_all_cycles_heckles": 99,
+      "example": "Akkor is lopni mentetek."
+    },
+    {
+      "lemma": "ellop",
+      "category": "theft_crime",
+      "count_cycle43_heckles": 3,
+      "count_all_cycles_heckles": 66,
+      "example": "Ellopni lehet?"
+    },
+    {
+      "lemma": "tolvaj",
+      "category": "theft_crime",
+      "count_cycle43_heckles": 1,
+      "count_all_cycles_heckles": 20,
+      "example": "Voltak tolvajok is, nem csak embercsempészek!"
+    },
+    {
+      "lemma": "csal",
+      "category": "theft_crime",
+      "count_cycle43_heckles": 0,
+      "count_all_cycles_heckles": 13,
+      "example": "Annyit csaltok, hogy 3 millió szavazat legyen!"
+    },
+    {
+      "lemma": "csaló",
+      "category": "theft_crime",
+      "count_cycle43_heckles": 0,
+      "count_all_cycles_heckles": 16,
+      "example": "Akciós a krumpli! Csalók vagytok!"
+    },
+    {
+      "lemma": "csalás",
+      "category": "theft_crime",
+      "count_cycle43_heckles": 0,
+      "count_all_cycles_heckles": 26,
+      "example": "A Fidesznek! A csalás próbáját állta ki!"
+    },
+    {
+      "lemma": "bűnöző",
+      "category": "theft_crime",
+      "count_cycle43_heckles": 1,
+      "count_all_cycles_heckles": 44,
+      "example": "A bűnözőket!"
+    },
+    {
+      "lemma": "maffia",
+      "category": "theft_crime",
+      "count_cycle43_heckles": 1,
+      "count_all_cycles_heckles": 9,
+      "example": "A magyar maffia nem érdekli?"
+    },
+    {
+      "lemma": "korrupt",
+      "category": "theft_crime",
+      "count_cycle43_heckles": 1,
+      "count_all_cycles_heckles": 8,
+      "example": "Ön félti a korrupt barátait!"
+    },
+    {
+      "lemma": "korrupció",
+      "category": "theft_crime",
+      "count_cycle43_heckles": 0,
+      "count_all_cycles_heckles": 20,
+      "example": "A fideszes korrupcióval mi van?"
+    },
+    {
+      "lemma": "gazember",
+      "category": "theft_crime",
+      "count_cycle43_heckles": 0,
+      "count_all_cycles_heckles": 8,
+      "example": "Csaló gazemberek!"
+    },
+    {
+      "lemma": "farizeus",
+      "category": "insult",
+      "count_cycle43_heckles": 5,
+      "count_all_cycles_heckles": 7,
+      "example": "Farizeusok!"
+    },
+    {
+      "lemma": "álszent",
+      "category": "insult",
+      "count_cycle43_heckles": 2,
+      "count_all_cycles_heckles": 11,
+      "example": "Hát igen, álszent farizeusok, szégyellje magát!"
+    },
+    {
+      "lemma": "gyenge",
+      "category": "insult",
+      "count_cycle43_heckles": 4,
+      "count_all_cycles_heckles": 84,
+      "example": "Nagyon gyenge!"
+    },
+    {
+      "lemma": "bohóc",
+      "category": "insult",
+      "count_cycle43_heckles": 1,
+      "count_all_cycles_heckles": 21,
+      "example": "Te mondtad, hogy bohóc vagyok."
+    },
+    {
+      "lemma": "hülye",
+      "category": "insult",
+      "count_cycle43_heckles": 0,
+      "count_all_cycles_heckles": 31,
+      "example": "A sok hülye internetes portál!"
+    },
+    {
+      "lemma": "hülyeség",
+      "category": "insult",
+      "count_cycle43_heckles": 0,
+      "count_all_cycles_heckles": 88,
+      "example": "A fejemhez kaptam a sok hülyeségtől!"
+    },
+    {
+      "lemma": "idióta",
+      "category": "insult",
+      "count_cycle43_heckles": 0,
+      "count_all_cycles_heckles": 2,
+      "example": "Szégyelld el magad! Nem vagyok droid, idióta állat!"
+    },
+    {
+      "lemma": "ostoba",
+      "category": "insult",
+      "count_cycle43_heckles": 0,
+      "count_all_cycles_heckles": 3,
+      "example": "Ez nem tréfa, ez primitív, ostoba..."
+    },
+    {
+      "lemma": "ostobaság",
+      "category": "insult",
+      "count_cycle43_heckles": 0,
+      "count_all_cycles_heckles": 3,
+      "example": "Ez ostobaság!"
+    },
+    {
+      "lemma": "buta",
+      "category": "insult",
+      "count_cycle43_heckles": 0,
+      "count_all_cycles_heckles": 4,
+      "example": "Istenem, de buta! Jézus Mária!"
+    },
+    {
+      "lemma": "primitív",
+      "category": "insult",
+      "count_cycle43_heckles": 0,
+      "count_all_cycles_heckles": 5,
+      "example": "Ez nagyon primitív."
+    },
+    {
+      "lemma": "szánalmas",
+      "category": "insult",
+      "count_cycle43_heckles": 0,
+      "count_all_cycles_heckles": 35,
+      "example": "Annyira szánalmas!"
+    },
+    {
+      "lemma": "nevetséges",
+      "category": "insult",
+      "count_cycle43_heckles": 1,
+      "count_all_cycles_heckles": 16,
+      "example": "Ne tegye nevetségessé magát!"
+    },
+    {
+      "lemma": "marhaság",
+      "category": "insult",
+      "count_cycle43_heckles": 1,
+      "count_all_cycles_heckles": 11,
+      "example": "Megint marhaságot beszélsz."
+    },
+    {
+      "lemma": "tróger",
+      "category": "insult",
+      "count_cycle43_heckles": 0,
+      "count_all_cycles_heckles": 1,
+      "example": "Ne legyél már ilyen tróger hülye…"
+    },
+    {
+      "lemma": "aljas",
+      "category": "insult",
+      "count_cycle43_heckles": 0,
+      "count_all_cycles_heckles": 12,
+      "example": "Aljas hazugság!"
+    },
+    {
+      "lemma": "aljasság",
+      "category": "insult",
+      "count_cycle43_heckles": 0,
+      "count_all_cycles_heckles": 1,
+      "example": "Aljasság!"
+    },
+    {
+      "lemma": "szemét",
+      "category": "insult",
+      "count_cycle43_heckles": 0,
+      "count_all_cycles_heckles": 12,
+      "example": "A szemetet hoztátok ide! Megmérgezitek a magyarokat, megmérgezitek a kismamákat!"
+    },
+    {
+      "lemma": "mocskos",
+      "category": "insult",
+      "count_cycle43_heckles": 0,
+      "count_all_cycles_heckles": 3,
+      "example": "Mocskos csalók!"
+    },
+    {
+      "lemma": "undorító",
+      "category": "insult",
+      "count_cycle43_heckles": 0,
+      "count_all_cycles_heckles": 7,
+      "example": "Ez a legsúlyosabb, legundorítóbb hozzászólás."
+    },
+    {
+      "lemma": "áruló",
+      "category": "treason_dictatorship",
+      "count_cycle43_heckles": 0,
+      "count_all_cycles_heckles": 9,
+      "example": "Az árulókat ezután is megvetik. Tök mindegy."
+    },
+    {
+      "lemma": "árulás",
+      "category": "treason_dictatorship",
+      "count_cycle43_heckles": 0,
+      "count_all_cycles_heckles": 2,
+      "example": "Micsoda árulás."
+    },
+    {
+      "lemma": "hazaáruló",
+      "category": "treason_dictatorship",
+      "count_cycle43_heckles": 0,
+      "count_all_cycles_heckles": 24,
+      "example": "3 hazaáruló…"
+    },
+    {
+      "lemma": "diktátor",
+      "category": "treason_dictatorship",
+      "count_cycle43_heckles": 0,
+      "count_all_cycles_heckles": 5,
+      "example": "A főnököd mekkora diktátor?"
+    },
+    {
+      "lemma": "diktatúra",
+      "category": "treason_dictatorship",
+      "count_cycle43_heckles": 1,
+      "count_all_cycles_heckles": 16,
+      "example": "Diktatúra!"
+    },
+    {
+      "lemma": "propaganda",
+      "category": "treason_dictatorship",
+      "count_cycle43_heckles": 1,
+      "count_all_cycles_heckles": 11,
+      "example": "Propaganda!"
+    },
+    {
+      "lemma": "gyáva",
+      "category": "cowardice_contempt",
+      "count_cycle43_heckles": 0,
+      "count_all_cycles_heckles": 23,
+      "example": "Fölvetettem három problémát! Három kérdést tettem fel! Három kérdést! Három kérdést tettem fel! Ilyen gyáva választ!"
+    },
+    {
+      "lemma": "gyávaság",
+      "category": "cowardice_contempt",
+      "count_cycle43_heckles": 0,
+      "count_all_cycles_heckles": 1,
+      "example": "Gyávaság!"
+    },
+    {
+      "lemma": "cinikus",
+      "category": "cowardice_contempt",
+      "count_cycle43_heckles": 0,
+      "count_all_cycles_heckles": 23,
+      "example": "Akkor legyél cinikus, ha érted azt, ami elhangzott, de nem érted! Nem tehetsz róla!"
+    },
+    {
+      "lemma": "gátlástalan",
+      "category": "cowardice_contempt",
+      "count_cycle43_heckles": 0,
+      "count_all_cycles_heckles": 1,
+      "example": "Gátlástalanul hazudsz!"
+    },
+    {
+      "lemma": "pfuj",
+      "category": "cowardice_contempt",
+      "count_cycle43_heckles": 0,
+      "count_all_cycles_heckles": 6,
+      "example": "Pfuj!"
+    },
+    {
+      "lemma": "takarodik",
+      "category": "cowardice_contempt",
+      "count_cycle43_heckles": 0,
+      "count_all_cycles_heckles": 4,
+      "example": "Mi meg azt üzenjük, hogy elítélt bűnözők takarodjanak a parlamentből."
+    }
+  ],
+  "excluded": [
+    {
+      "lemma": "fúj",
+      "reason": "mostly 'spray' (lefújták), not booing"
+    },
+    {
+      "lemma": "sötét",
+      "reason": "'dark' more often than 'stupid'"
+    },
+    {
+      "lemma": "provokál",
+      "reason": "matches 'és nem provokál', not an accusation"
+    }
+  ]
+}

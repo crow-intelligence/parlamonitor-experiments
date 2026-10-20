@@ -552,9 +552,25 @@ live in `parlamonitor.living`:
 
 The per-day counts are asserted against `data/derived/applause/reaction_lines.csv`.
 
+**Hostile heckles** are heckles whose lemmas include a word from
+`data/labels/hostile_heckle_words.json`: 58 accusing, shaming or insulting
+lemmas (*hazudik, szégyen, tolvaj, farizeus…*).
+- Every entry is checked against real heckles, with its counts and an example.
+- The file records three exclusions and their reasons.
+- It is `checked_by_human: true`, and `load_hostile_words` refuses a list that
+  isn't.
+
+In cycle 43 the list flags 61 heckles from the other side. The quotes are
+lemmatised from a cache seeded by the heckle-content cache; emtsv is needed
+only for new quotes.
+
 The tab has two parts:
-- **a seismograph of the day:** speeches as bands in faction colours, the own
-  side's responses above and the other side's answers below;
+- **a seismograph of the day, drawn as labelled lanes like a score.** Speeches
+  sit in the middle as bands in faction colours. Above them are the speaker's
+  own side's responses: supportive interjections, laughing with, applause.
+  Below are the other side's answers: heckles, **hostile heckles**, laughing
+  at, and **the chamber's noise** (*zaj, moraj, felzúdulás*). Each lane has its
+  own scale.
 - **a living transcript of the chosen speech:** reactions in the margin of the
   benches they came from, and a ⟋ where a heckle broke in.
 
