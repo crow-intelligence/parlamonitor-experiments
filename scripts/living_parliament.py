@@ -26,10 +26,21 @@ from datetime import UTC, datetime
 from pathlib import Path
 
 import pandas as pd
+import requests
 
 from parlamonitor.applause import placed_reactions
+from parlamonitor.emtsv import EmtsvError, analyse_lines
 from parlamonitor.interactions import SpeakerRegistry
-from parlamonitor.living import bench, flow, reaction_seconds
+from parlamonitor.lexicon import fold
+from parlamonitor.living import (
+    LANES,
+    bench,
+    flow,
+    hostile_words,
+    lanes,
+    load_hostile_words,
+    reaction_seconds,
+)
 from parlamonitor.loading import DATA_RAW, load_speeches
 from parlamonitor.parentheticals import file_sha256
 from parlamonitor.reactions import GOVERNING_PARTIES
@@ -37,6 +48,9 @@ from parlamonitor.reactions import GOVERNING_PARTIES
 ROOT = Path(__file__).resolve().parents[1]
 DEFAULT_OUTPUT_DIR = ROOT / "data" / "derived" / "living"
 REACTION_LINES = ROOT / "data" / "derived" / "applause" / "reaction_lines.csv"
+HOSTILE_WORDS = ROOT / "data" / "labels" / "hostile_heckle_words.json"
+SEED_CACHE = ROOT / "data" / "derived" / "heckles" / "quote_lemma_cache.jsonl"
+HECKLE_KINDS = {"heckling", "interjection"}
 CYCLE = 43
 
 
@@ -58,7 +72,41 @@ def parse_args(argv: Sequence[str] | None = None) -> argparse.Namespace:
     parser = argparse.ArgumentParser(description=__doc__.splitlines()[0])
     parser.add_argument("--output-dir", type=Path, default=DEFAULT_OUTPUT_DIR)
     parser.add_argument("--data-dir", type=Path, default=None)
+    parser.add_argument("--hostile-words", type=Path, default=HOSTILE_WORDS)
+    parser.add_argument("--base-url", default="http://127.0.0.1:5000")
     return parser.parse_args(argv)
+
+
+def quote_lemmas(
+    quotes: set[str], cache_path: Path, base_url: str
+) -> dict[str, set[str]]:
+    """Case-folded lemmas of each heckle quote, from a cache; emtsv for the rest.
+
+    The cache starts from the heckle-content cache (the same quotes, mostly), so
+    only quotes new to the in-speech view need the service.
+    """
+    cache: dict[str, list] = {}
+    for path in (SEED_CACHE, cache_path):
+        if path.is_file():
+            with path.open(encoding="utf-8") as handle:
+                for raw in handle:
+                    record = json.loads(raw)
+                    cache[record["quote"]] = record["sentences"]
+    todo = sorted(quotes - set(cache))
+    if todo:
+        with requests.Session() as session:
+            analysed = analyse_lines(todo, base_url=base_url, session=session)
+        with cache_path.open("a", encoding="utf-8") as handle:
+            for quote, sentences in zip(todo, analysed, strict=True):
+                serial = [[[t.form, t.lemma, t.xpostag] for t in s] for s in sentences]
+                cache[quote] = serial
+                handle.write(
+                    json.dumps(
+                        {"quote": quote, "sentences": serial}, ensure_ascii=False
+                    )
+                    + "\n"
+                )
+    return {q: {fold(t[1]) for s in cache[q] for t in s} for q in quotes}
 
 
 def main(argv: Sequence[str] | None = None) -> int:
@@ -128,6 +176,35 @@ def main(argv: Sequence[str] | None = None) -> int:
             }
         )
 
+    # Hostile heckles and lanes need every quote's lemmas, in one batch.
+    words = load_hostile_words(args.hostile_words)
+    quotes = {
+        r["quote"]
+        for items in days.values()
+        for sp in items
+        for r in sp["reactions"]
+        if r["quote"] and set(r["kinds"]) & HECKLE_KINDS
+    }
+    try:
+        lemmas = quote_lemmas(quotes, out / "quote_lemma_cache.jsonl", args.base_url)
+    except (EmtsvError, requests.ConnectionError) as error:
+        print(
+            f"emtsv is needed for uncached quotes and failed: {error}", file=sys.stderr
+        )
+        return 1
+    for items in days.values():
+        for sp in items:
+            for r in sp["reactions"]:
+                hits = (
+                    hostile_words(lemmas[r["quote"]], words)
+                    if r["quote"] and set(r["kinds"]) & HECKLE_KINDS
+                    else []
+                )
+                r["hostile"] = hits
+                r["lanes"] = lanes(frozenset(r["kinds"]), r["flow"], bool(hits))
+                for lane in r["lanes"]:
+                    counted[f"lane_{lane}"] += 1
+
     index = []
     generated = datetime.now(UTC).isoformat()
     for date, items in sorted(days.items()):
@@ -146,6 +223,10 @@ def main(argv: Sequence[str] | None = None) -> int:
                 "other": other,
                 "end_s": round(max(s["t0"] + s["dur"] for s in items), 1),
                 "busiest": busiest["uid"],
+                "lanes": {
+                    lane: sum(lane in r["lanes"] for s in items for r in s["reactions"])
+                    for lane, _ in LANES
+                },
             }
         )
         (out / f"{date}.json").write_text(
@@ -172,6 +253,12 @@ def main(argv: Sequence[str] | None = None) -> int:
         reconciled = None
 
     params = {
+        "lanes": [{"id": lane, "side": side} for lane, side in LANES],
+        "hostile_words": {
+            "path": _repo_relative(args.hostile_words),
+            "sha256": file_sha256(args.hostile_words),
+            "count": len(words),
+        },
         "cycle": CYCLE,
         "time_estimate": (
             "speech start + duration x share of the speech's words said by the end of "

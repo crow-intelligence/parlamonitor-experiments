@@ -65,6 +65,36 @@ def _repo_relative(path):
 _SPAN = re.compile(r"\(([^()]*)\)")
 
 
+def coverage(edges: pd.DataFrame, cycle: int, data_dir) -> dict:
+    """How many of the cycle's named interjections sit inside a speech.
+
+    Computed, not written down: the share used to be a fixed sentence, and it
+    went stale when the U+2011 separator fix found 199 more interjections
+    inside speeches (41% outside became 17%).
+    """
+    lines, _ = load_parentheticals(cycle, data_dir)
+    total = sum(
+        1
+        for line in lines
+        for e in events_in(line)
+        if e.kind is Kind.INTERJECTION and e.speaker
+    )
+    inside = len(edges)
+    outside = max(0, total - inside)
+    share = outside / total if total else 0.0
+    return {
+        "named_interjections_in_parentheticals": total,
+        "inside_speeches": inside,
+        "outside_share": round(share, 4),
+        "note": (
+            f"{share:.0%} of this cycle's named interjections ({outside} of {total}) "
+            "occur outside any speech record -- during voting, procedure and the "
+            "ceremonial opening -- and have no floor-holder, so they cannot become "
+            "edges."
+        ),
+    }
+
+
 def parse_args(argv: Sequence[str] | None = None) -> argparse.Namespace:
     parser = argparse.ArgumentParser(description=__doc__.splitlines()[0])
     parser.add_argument("--output-dir", type=Path, default=DEFAULT_OUTPUT_DIR)
@@ -365,13 +395,7 @@ def main(argv: Sequence[str] | None = None) -> int:
             "edges_by_crossing": dict(crossing_edges),
             "address_events_by_cycle": address_counts,
         },
-        "coverage": {
-            "note": (
-                "41% of this cycle's named interjections occur outside any speech "
-                "record -- during voting, procedure and the ceremonial opening -- "
-                "and have no floor-holder, so they cannot become edges."
-            )
-        },
+        "coverage": coverage(edges, args.cycle, args.data_dir),
         "self_loops_handling": (
             "kept in heckle_edges.csv, dropped from the graph"
             if not args.keep_self_loops

@@ -37,7 +37,7 @@
   "@type": "Dataset",
   "@id": "https://crowintelligence.org/parlamonitor-dashboard/#dataset",
   "name": "Parlamonitor — az Országgyűlés 43. ciklusának felszólalásai",
-  "description": "1693 felszólalás (826 775 szó) az Országgyűlés 43. ciklusának jegyzőkönyveiből, olvashatósági, hangulati, érzelmi, téma- és kulcsszó-annotációval, a 916 névvel jelölt közbeszólásból épített bekiabálás-hálózattal, valamint a felszólalók és a bekiabálások (42–43. ciklus) szókincsének összevetésével.",
+  "description": "1693 felszólalás (826 775 szó) az Országgyűlés 43. ciklusának jegyzőkönyveiből, olvashatósági, hangulati, érzelmi, téma- és kulcsszó-annotációval, az 1115 névvel jelölt közbeszólásból épített bekiabálás-hálózattal, valamint a felszólalók és a bekiabálások (42–43. ciklus) szókincsének összevetésével.",
   "url": "https://crowintelligence.org/parlamonitor-dashboard/",
   "inLanguage": "hu",
   "creator": {
@@ -292,6 +292,10 @@ details.table-view summary { cursor: pointer; color: var(--text-secondary); }
 .rnote .bubble { display: inline-block; background: var(--surface-2); border-radius: 10px; padding: 2px 9px; margin-top: 2px; }
 .rnote.center { font-size: 12px; color: var(--text-muted); border: 0; padding: 0; margin: 2px 0 4px; }
 .cut { color: var(--crow); font-weight: 700; }
+.rnote.hostile { border-width: 0 0 0 5px; }
+.transcript .gov .rnote.hostile { border-width: 0 5px 0 0; }
+.hostile-tag { font-size: 10.5px; text-transform: uppercase; letter-spacing: .05em; color: var(--text-primary);
+  border: 1px solid var(--flow-other); border-radius: 4px; padding: 0 4px; margin-left: 4px; white-space: nowrap; }
 .inline-dir { color: var(--text-muted); font-size: 12.5px; font-style: italic; }
 @media (max-width: 760px) {
   .transcript { grid-template-columns: 1fr; }
@@ -458,7 +462,7 @@ details.table-view summary { cursor: pointer; color: var(--text-secondary); }
       <em>kapott</em> valaki (in-degree), illetve mennyit <em>adott</em>
       (out-degree). A két nézet ugyanazt a méretskálát és ugyanazt az
       elrendezést használja, így közvetlenül látszik, ki oszt többet, mint
-      amennyit kap. A 294 élből 226 átível a két oldal között — a félbeszakítás
+      amennyit kap. A 364 élből 271 átível a két oldal között — a félbeszakítás
       túlnyomórészt kormány–ellenzék műfaj. Kattintásra a képviselő profilja
       nyílik meg.
     </p>
@@ -649,7 +653,10 @@ details.table-view summary { cursor: pointer; color: var(--text-secondary); }
       kezeljük, a megszólításokat (<em>Tisztelt Ház!</em>) pedig kihagytuk az
       összehasonlítás alapjából. Élő parlament: a reakciók időpontja becslés —
       a beszéd kezdete és hossza alapján, aszerint, hogy a beszéd szavainak
-      hányad része hangzott el addig a mondatig.</p>
+      hányad része hangzott el addig a mondatig. Ellenséges bekiabálás: amelyben
+      vádló, megszégyenítő vagy sértő szó áll (például <em>hazudik, szégyen,
+      tolvaj</em>) — 58 szavas, kézzel ellenőrzött lista alapján; a terem zaja
+      a jegyzőkönyv saját bejegyzése (<em>zaj, moraj, felzúdulás</em>).</p>
     <p><strong>Amit ez nem mér.</strong> A szótáralapú mérés minden pontszáma
       visszavezethető a konkrét szavakra, amelyek létrehozták — de a szótár nem
       olvas kontextust. Két korlátot érdemes fejben tartani. A szentimentszótár
@@ -673,8 +680,8 @@ details.table-view summary { cursor: pointer; color: var(--text-secondary); }
       saját gyűjtésének részei — folyamatban lévő munka, a szerző engedélyével
       használjuk. A szótárakat nem tesszük közzé.</p>
     <p><strong>Lefedettség.</strong> Minden képviselőhöz kötött pontszám a 43.
-      ciklusé, mert csak ehhez van beszédexport. A bekiabálás-hálózat 916 névvel
-      jelölt közbeszólásból épül; a ciklus közbeszólásainak további 41%-a
+      ciklusé, mert csak ehhez van beszédexport. A bekiabálás-hálózat 1115 névvel
+      jelölt közbeszólásból épül; a ciklus névvel jelölt közbeszólásainak további 17%-a
       felszólaláson kívül hangzott el (szavazás, ügyrend), ezekhez nincs kihez
       kötni őket.</p>
     <p><strong>Eszközök.</strong> emtsv · saphes · keyflux · BERTopic · networkx ·

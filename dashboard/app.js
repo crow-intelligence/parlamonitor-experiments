@@ -191,14 +191,26 @@ const T = {
   },
   living: {
     dayTitle: "Egy ülésnap, ahogy a terem hallotta",
-    dayLede: "Az egész nap egyetlen idővonalon. A középső sávban a felszólalások " +
-      "sorakoznak, a szónok frakciójának színében. Fölöttük, ahogy a szónok saját " +
-      "oldala tapsol és nevet; alattuk, ahogy a másik oldal bekiabál vagy kineveti. " +
-      "Kattintson egy felszólalásra, és alább elolvashatja, mondatonként, a terem válaszaival.",
+    dayLede: "Az egész nap egyetlen idővonalon, mint egy kotta. Középen a felszólalások, " +
+      "a szónok frakciójának színében. Fölöttük a szónok saját oldalának válaszai: taps, " +
+      "nevetés, biztató közbeszólás. Alattuk a másik oldalé: bekiabálás — külön sávban " +
+      "az ellenséges, vádló vagy sértő —, nevetés rajta, és a terem zaja, morajlása. " +
+      "Kattintson egy felszólalásra, és alább elolvashatja, mondatonként.",
     dayLabel: "Ülésnap",
     dayOption: (date, n) => `${date} — ${n} reakció`,
-    own: "fent: a szónok saját oldala tapsol, nevet",
-    other: "lent: a másik oldal bekiabál, kineveti",
+    own: "fent: a szónok saját oldala",
+    other: "lent: a másik oldal",
+    ownGroup: "a szónok saját oldala", otherGroup: "a másik oldal",
+    speechesLane: "felszólalások",
+    lanes: {
+      support: "közbeszólás (biztató)", laugh_with: "nevetés vele", applause: "taps",
+      heckle: "bekiabálás", heckle_hostile: "ellenséges bekiabálás",
+      laugh_at: "nevetés rajta", noise: "zaj, moraj, felzúdulás"
+    },
+    reactionsWord: "reakció",
+    scales: "minden sávnak saját skálája van (a jobb szélen: a legnagyobb oszlop)",
+    hostileTag: "ellenséges",
+    hostileTitle: w => `vádló, megszégyenítő vagy sértő szó: ${w}`,
     closing: "apró jel a sáv végén: udvariassági taps a beszéd után",
     axis: "az ülés kezdete óta eltelt idő (óra)",
     hour: h => `${h}. óra`,
@@ -1685,58 +1697,70 @@ function pickSpeech(day, uid, S, scroll) {
 function drawSeismograph(day, meta, S) {
   const host = document.getElementById("elo-seismo");
   const W = Math.max(320, host.clientWidth || 1100);
-  const m = { l: 12, r: 12 }, upH = 92, stripH = 26, downH = 92, axisH = 34;
-  const H = upH + stripH + downH + axisH;
+  const narrow = W < 700;
+  const labelW = narrow ? 112 : 168, rightW = 34;
+  const laneH = narrow ? 24 : 28, gap = 5, stripH = 24, groupH = 16, axisH = 34;
+  const LANES = DATA.living.params.lanes;            // [{id, side}], top to bottom
+  const above = LANES.filter(l => l.side === "own"), below = LANES.filter(l => l.side === "other");
   const end = meta.end_s;
-  const x = d3.scaleLinear().domain([0, end]).range([m.l, W - m.r]);
-  // Two-minute bins, coarser on a narrow screen so that a bin is never under
-  // 4px wide (whole minutes, so the note can say how long a bar is).
-  const BIN = Math.max(120, Math.ceil(end / ((W - m.l - m.r) / 4) / 60) * 60);
-  const bins = d3.range(0, Math.ceil(end / BIN)).map(i => ({ i, t0: i * BIN, own: [], other: [] }));
-  day.speeches.forEach(sp => sp.reactions.forEach(r => {
-    if (r.flow === "own" || r.flow === "other") bins[Math.min(bins.length - 1, Math.floor(r.t / BIN))][r.flow].push({ r, sp });
-  }));
-  const peak = d3.max(bins, b => Math.max(b.own.length, b.other.length)) || 1;
-  const yUp = d3.scaleLinear().domain([0, peak]).range([0, upH - 6]);
-  const yDown = d3.scaleLinear().domain([0, peak]).range([0, downH - 6]);
-  const stripY = upH;
+  const x = d3.scaleLinear().domain([0, end]).range([labelW, W - rightW]);
+  // Two-minute bins, coarser on a narrow screen so a bin is never under 4px wide.
+  const BIN = Math.max(120, Math.ceil(end / ((W - labelW - rightW) / 4) / 60) * 60);
+  const nBins = Math.ceil(end / BIN);
+  const grid = Object.fromEntries(LANES.map(l => [l.id, d3.range(nBins).map(i => ({ i, t0: i * BIN, hits: [] }))]));
+  day.speeches.forEach(sp => sp.reactions.forEach(r => (r.lanes || []).forEach(lane => {
+    grid[lane][Math.min(nBins - 1, Math.floor(r.t / BIN))].hits.push({ r, sp });
+  })));
+
+  // Vertical layout: group label, own lanes, the speeches, other lanes, axis.
+  let y = groupH;
+  const laneY = {};
+  above.forEach(l => { laneY[l.id] = y; y += laneH + gap; });
+  const stripY = y; y += stripH + gap + groupH;
+  below.forEach(l => { laneY[l.id] = y; y += laneH + gap; });
+  const H = y + axisH;
   const svg = d3.select(host).html("").append("svg").attr("viewBox", `0 0 ${W} ${H}`).attr("width", "100%")
     .attr("role", "img").attr("aria-label", `${S.dayTitle}: ${huDate(day.date)}`);
 
-  // Hour grid.
   const hours = d3.range(3600, end, 3600);
   svg.append("g").selectAll("line").data(hours).join("line")
-    .attr("x1", x).attr("x2", x).attr("y1", 4).attr("y2", upH + stripH + downH)
+    .attr("x1", x).attr("x2", x).attr("y1", groupH).attr("y2", H - axisH)
     .style("stroke", "var(--grid)");
-  const bw = Math.max(1, x(BIN) - x(0) - 1);   // 1px surface gap between adjacent bins
-  const strongest = list => list.slice().sort((a, b) => d3.descending(a.r.w, b.r.w))[0];
-  const binTip = b => {
-    const parts = [`<strong>${S.binTip(clock(b.t0), clock(b.t0 + BIN))}</strong>`,
-      S.ownN(b.own.length), S.otherN(b.other.length)];
-    const top = strongest(b.other) || strongest(b.own);
-    if (top) parts.push(`<span style="color:var(--text-muted)">${esc(top.sp.speaker)}:</span> ${esc(top.r.who ? top.r.who + ": " + (top.r.quote || "") : top.r.span)}`);
-    return parts.join("<br>");
-  };
-  svg.append("g").selectAll("rect").data(bins.filter(b => b.own.length)).join("rect")
-    .attr("x", b => x(b.t0) + 0.5).attr("width", bw)
-    .attr("y", b => stripY - 2 - yUp(b.own.length)).attr("height", b => yUp(b.own.length))
-    .attr("rx", 1).style("fill", "var(--flow-own)")
-    .on("mousemove", (event, b) => showTip(binTip(b), event)).on("mouseleave", hideTip);
-  svg.append("g").selectAll("rect").data(bins.filter(b => b.other.length)).join("rect")
-    .attr("x", b => x(b.t0) + 0.5).attr("width", bw)
-    .attr("y", stripY + stripH + 2).attr("height", b => yDown(b.other.length))
-    .attr("rx", 1).style("fill", "var(--flow-other)")
-    .on("mousemove", (event, b) => showTip(binTip(b), event)).on("mouseleave", hideTip);
+  const group = (text, yy) => svg.append("text").attr("x", 0).attr("y", yy - 4)
+    .style("font-size", "10.5px").style("letter-spacing", ".07em").style("text-transform", "uppercase")
+    .style("fill", "var(--text-muted)").text(text);
+  group(S.ownGroup, groupH);
+  group(S.otherGroup, stripY + stripH + gap + groupH);
 
-  // Hit targets: each bin with any reaction gets an invisible target as wide as
-  // the bin over its whole half, so a thin bar is still easy to hover.
-  const hitW = x(BIN) - x(0);
-  const live = bins.filter(b => b.own.length || b.other.length);
-  [[4, upH - 6], [stripY + stripH + 2, downH - 2]].forEach(([y0, h]) => {
+  const strongest = hits => hits.slice().sort((a, b) => d3.descending(a.r.w, b.r.w))[0];
+  const bw = Math.max(1, x(BIN) - x(0) - 1);   // 1px surface gap between bins
+  LANES.forEach(l => {
+    const bins = grid[l.id], peak = d3.max(bins, b => b.hits.length) || 0;
+    const top = laneY[l.id], ink = l.side === "own" ? "var(--flow-own)" : "var(--flow-other)";
+    const h = d3.scaleLinear().domain([0, Math.max(1, peak)]).range([0, laneH - 3]);
+    svg.append("line").attr("x1", labelW).attr("x2", W - rightW).attr("y1", top + laneH).attr("y2", top + laneH)
+      .style("stroke", "var(--border)");
+    svg.append("text").attr("x", labelW - 8).attr("y", top + laneH / 2).attr("dy", "0.35em")
+      .attr("text-anchor", "end").style("font-size", narrow ? "10.5px" : "12px")
+      .style("fill", "var(--text-secondary)").text(S.lanes[l.id]);
+    svg.append("text").attr("x", W - rightW + 4).attr("y", top + 8).style("font-size", "9.5px")
+      .style("fill", "var(--text-muted)").text(peak ? `max ${peak}` : "—");
+    const live = bins.filter(b => b.hits.length);
+    svg.append("g").selectAll("rect").data(live).join("rect")
+      .attr("x", b => x(b.t0) + 0.5).attr("width", bw)
+      .attr("y", b => top + laneH - h(b.hits.length)).attr("height", b => h(b.hits.length))
+      .attr("rx", 1).style("fill", ink).style("pointer-events", "none");
+    // Hit targets as wide as the bin and as tall as the lane.
     svg.append("g").attr("class", "hit").selectAll("rect").data(live).join("rect")
-      .attr("x", b => x(b.t0 + BIN / 2) - hitW / 2).attr("width", hitW)
-      .attr("y", y0).attr("height", h).style("fill", "transparent")
-      .on("mousemove", (event, b) => showTip(binTip(b), event)).on("mouseleave", hideTip);
+      .attr("x", b => x(b.t0)).attr("width", Math.max(1, x(BIN) - x(0))).attr("y", top).attr("height", laneH)
+      .style("fill", "transparent")
+      .on("mousemove", (event, b) => {
+        const best = strongest(b.hits);
+        const what = best.r.who ? `${esc(best.r.who)}: ${esc(best.r.quote || "")}` : esc(best.r.span);
+        showTip(`<strong>${esc(S.lanes[l.id])}</strong> · ${S.binTip(clock(b.t0), clock(b.t0 + BIN))}<br>` +
+          `${b.hits.length} ${S.reactionsWord}<br><span style="color:var(--text-muted)">${esc(best.sp.speaker)}:</span> ${what}`, event);
+      })
+      .on("mouseleave", hideTip);
   });
 
   // Speeches as bands, in the speaker's faction colour; a click opens the text.
@@ -1752,17 +1776,20 @@ function drawSeismograph(day, meta, S) {
       `${clock(sp.t0)} · ${fmt(sp.dur / 60, 0)} perc<br>${S.ownN(count(sp, "own"))} · ${S.otherN(count(sp, "other"))}`, event))
     .on("mouseleave", hideTip)
     .on("click", (event, sp) => pickSpeech(day, sp.uid, S, true));
+  svg.append("text").attr("x", labelW - 8).attr("y", stripY + stripH / 2).attr("dy", "0.35em")
+    .attr("text-anchor", "end").style("font-size", narrow ? "10.5px" : "12px").style("font-weight", 600)
+    .style("fill", "var(--text-primary)").text(S.speechesLane);
   // Closing applause: a faint tick at the end of the speech it followed.
   const closings = day.speeches.filter(sp => sp.reactions.some(r => r.closing));
   svg.append("g").selectAll("line").data(closings).join("line")
     .attr("x1", sp => x(sp.t0 + sp.dur)).attr("x2", sp => x(sp.t0 + sp.dur))
-    .attr("y1", stripY - 5).attr("y2", stripY).style("stroke", "var(--text-muted)").style("stroke-width", 1)
+    .attr("y1", stripY - 4).attr("y2", stripY).style("stroke", "var(--text-muted)").style("stroke-width", 1)
     .style("pointer-events", "none");
 
-  const axis = svg.append("g").attr("class", "axis").attr("transform", `translate(0,${upH + stripH + downH + 2})`)
+  const axis = svg.append("g").attr("class", "axis").attr("transform", `translate(0,${H - axisH + 2})`)
     .call(d3.axisBottom(x).tickValues(hours).tickFormat(t => S.hour(t / 3600)).tickSize(4));
   axis.select(".domain").remove();
-  svg.append("text").attr("x", m.l).attr("y", H - 2).style("font-size", "10.5px")
+  svg.append("text").attr("x", labelW).attr("y", H - 2).style("font-size", "10.5px")
     .style("fill", "var(--text-muted)").text(S.axis);
 
   document.getElementById("elo-note").textContent = S.note(BIN / 60);
@@ -1771,7 +1798,7 @@ function drawSeismograph(day, meta, S) {
     `<span><i class="swatch" style="background:var(--flow-own)"></i>${S.own}</span>` +
     `<span><i class="swatch" style="background:var(--flow-other)"></i>${S.other}</span>` +
     factions.map(f => `<span><i class="swatch" style="background:${factionColour(f)}"></i>${esc(f)}</span>`).join("") +
-    `<span style="color:var(--text-muted)">${S.closing}</span>`;
+    `<span style="color:var(--text-muted)">${S.closing} · ${S.scales}</span>`;
 }
 
 function drawTranscript(day, S) {
@@ -1787,11 +1814,14 @@ function drawTranscript(day, S) {
   const muteDirections = html => html.replace(/\(([^()]*)\)/g, (whole, inner) =>
     spans.has(inner.trim()) ? `<span class="inline-dir">${whole}</span>` : whole);
   const note = r => {
-    const cls = r.flow === "own" ? "own" : r.flow === "other" ? "other" : "";
+    const cls = (r.flow === "own" ? "own" : r.flow === "other" ? "other" : "") +
+      (r.hostile && r.hostile.length ? " hostile" : "");
     const body = r.who && r.quote
       ? `${glyph(r.kinds)} <span class="who">${esc(r.who)}:</span> <span class="bubble">${esc(r.quote)}</span>`
       : `${glyph(r.kinds)} ${esc(r.span)}`;
-    return `<div class="rnote ${cls}" title="(${esc(r.span)})">${body}</div>`;
+    const tag = r.hostile && r.hostile.length
+      ? ` <span class="hostile-tag" title="${S.hostileTitle(r.hostile.join(", "))}">${S.hostileTag}</span>` : "";
+    return `<div class="rnote ${cls}" title="(${esc(r.span)})">${body}${tag}</div>`;
   };
   const rows = [
     `<div class="bench-h side gov">${S.gov}</div><div class="bench-h">${S.speech}</div><div class="bench-h side">${S.opp}</div>`

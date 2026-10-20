@@ -312,8 +312,9 @@ uv run python scripts/heckle_network.py
 ```
 
 An edge runs from the interjector named inside a parenthetical to whoever held
-the floor. Cycle 43: 916 named interjections, 913 (99.7%) resolved to a known
-speaker, 103 nodes, 294 edges, no self-loops. Both ends carry a faction, so the
+the floor. Cycle 43: 1,115 named interjections, 1,110 (99.6%) resolved to a known
+speaker, 112 nodes, 364 edges. Three are self-loops (a speaker's own name inside
+their speech), which are dropped from the graph. Both ends carry a faction, so the
 graph rolls up to party or to government/opposition.
 
 `data/derived/reactions/NETWORK.md` documents the outputs and the d3 contract.
@@ -323,12 +324,13 @@ defaults that key to `"edges"`, which `d3.forceSimulation` does not read. Party-
 and side-level roll-ups ship as their own node-link files; GraphML is there for
 Gephi.
 
-Heckling is overwhelmingly cross-bench: 804 of the 913 interruptions where both
+Heckling is overwhelmingly cross-bench: 959 of the 1,110 interruptions where both
 sides are known go from one side of the house to the other. Two limits are
 structural — the network is cycle 43 only, because an edge needs a floor-holder
-and that is the only cycle with a speeches export; and 41% of that cycle's named
-interjections happen outside any speech (voting, procedure, the opening
-ceremony), so they have no target and are not in the graph.
+and that is the only cycle with a speeches export; and 17% of that cycle's named
+interjections (222 of 1,337) happen outside any speech (voting, procedure, the
+opening ceremony), so they have no target and are not in the graph. The
+manifest computes this share; it is no longer a fixed sentence.
 
 ## Task 5 — readability, affect and keywords
 
@@ -550,9 +552,25 @@ live in `parlamonitor.living`:
 
 The per-day counts are asserted against `data/derived/applause/reaction_lines.csv`.
 
+**Hostile heckles** are heckles whose lemmas include a word from
+`data/labels/hostile_heckle_words.json`: 58 accusing, shaming or insulting
+lemmas (*hazudik, szégyen, tolvaj, farizeus…*).
+- Every entry is checked against real heckles, with its counts and an example.
+- The file records three exclusions and their reasons.
+- It is `checked_by_human: true`, and `load_hostile_words` refuses a list that
+  isn't.
+
+In cycle 43 the list flags 61 heckles from the other side. The quotes are
+lemmatised from a cache seeded by the heckle-content cache; emtsv is needed
+only for new quotes.
+
 The tab has two parts:
-- **a seismograph of the day:** speeches as bands in faction colours, the own
-  side's responses above and the other side's answers below;
+- **a seismograph of the day, drawn as labelled lanes like a score.** Speeches
+  sit in the middle as bands in faction colours. Above them are the speaker's
+  own side's responses: supportive interjections, laughing with, applause.
+  Below are the other side's answers: heckles, **hostile heckles**, laughing
+  at, and **the chamber's noise** (*zaj, moraj, felzúdulás*). Each lane has its
+  own scale.
 - **a living transcript of the chosen speech:** reactions in the margin of the
   benches they came from, and a ⟋ where a heckle broke in.
 

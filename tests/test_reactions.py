@@ -324,3 +324,11 @@ def test_the_addressee_reaches_the_event():
 
 def test_an_ordinary_interjection_has_no_addressee():
     assert classify("Vadai Ágnes: Nem igaz!").addressee is None
+
+
+def test_the_speeches_non_breaking_hyphen_separates_events_too():
+    # The speeches export separates events with U+2011, not a hyphen.
+    line = "Magyar Péter: Hazudsz! \u2011 Derültség a kormánypárti padsorokból."
+    events = events_in(line)
+    assert [e.kind for e in events] == [Kind.INTERJECTION, Kind.LAUGHTER]
+    assert events[0].quote == "Hazudsz!"

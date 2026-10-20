@@ -205,7 +205,12 @@ _ABBREVIATION_END = re.compile(
     r"(?:^|\s)(?:" + "|".join(_ABBREVIATIONS) + r"|[A-ZÁÉÍÓÖŐÚÜŰ])\.$",
     re.IGNORECASE,
 )
-_EVENT_SPLIT = re.compile(r"\s+[-–—]\s+")
+# Events inside one note are separated by a spaced dash. The parentheticals
+# files use a hyphen; the speeches export uses U+2011, the non-breaking hyphen
+# ("Hazudsz! ‑ Derültség a kormánypárti padsorokból."). Without it, 469 of the
+# 6,825 notes inside cycle-43 speeches were read as one event, and the laughter
+# or applause after a heckle was swallowed into the heckle's quote.
+_EVENT_SPLIT = re.compile(r"\s+[-–—\u2011]\s+")
 
 # "Vadai Ágnes: Nem hallom!" -- a named interjection. Up to four name tokens,
 # each capitalised, followed by a colon. Anchored to the segment start so that
