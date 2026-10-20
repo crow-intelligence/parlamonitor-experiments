@@ -14,7 +14,7 @@ Two limits are structural and are reported rather than papered over:
 * **Cycle 43 only.** The target of an edge is the floor-holder, and only cycle
   43 has a speeches export. The parentheticals files for 39-42 name interjectors
   but nothing to attach them to.
-* **41% of cycle-43 named interjections happen outside any speech** -- during
+* **17% of cycle-43 named interjections happen outside any speech** -- during
   voting, the chair's procedural passages, the ceremonial opening. Those have no
   floor-holder and therefore no edge. The network covers interruptions of
   speeches, not every shout in the chamber.

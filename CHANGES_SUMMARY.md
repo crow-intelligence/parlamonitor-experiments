@@ -996,3 +996,47 @@ Two layout problems were found and fixed:
    export has no wall-clock start.
 4. **It is experimental.** It is not yet in the About section's method list
    beyond one sentence, and there is no site PR.
+
+---
+
+# Task 14 — fix: the speeches export separates events with U+2011
+
+Branch `feat/living-lanes`, stacked on `feat/living-parliament`.
+
+**The bug.** Inside one note, events are separated by a spaced dash. The
+parentheticals files use a hyphen (` - `). The speeches export uses U+2011,
+the non-breaking hyphen (` ‑ `), which `reactions._EVENT_SPLIT` did not
+include. So 469 of the 6,825 notes inside cycle-43 speeches (6.9%) were read
+as a single event. The laughter or applause after a heckle was swallowed into
+the heckle's quote, as in *"Hazudsz! ‑ Derültség a kormánypárti
+padsorokból."*
+
+**The fix** is one character in the pattern, with a regression test. The
+parentheticals files contain no U+2011, so every five-cycle result is
+unchanged; re-running heckle content gives byte-identical output.
+
+**What moved** (cycle-43, in-speech only, everything regenerated):
+
+| | before | after |
+| --- | ---: | ---: |
+| heckle network: named interjections | 916 | 1,115 |
+| — nodes / edges | 103 / 294 | 112 / 364 |
+| — cross-bench interjections | 804 of 913 | 959 of 1,110 |
+| named interjections **outside** any speech | "41%" | **17%** (222 of 1,337) |
+| MP scores: laughter / applause / heckles received | 587 / 2,219 / 740 | 611 / 2,281 / 783 |
+| applause lines: applause / laughing at / heckles | 626 / 208 / 1,632 | 638 / 225 / 1,735 |
+| applause features | — | all within 0.1× |
+
+**The "41% outside any speech" figure was mostly this bug.** The
+interjections hidden behind U+2011 could not be found inside the speeches.
+`heckle_network.py` now computes the share (`coverage` in its manifest)
+instead of quoting a fixed sentence.
+
+**Updated:** README, the `interactions.py` docstring, and the dashboard's
+network lede, About section and Dataset JSON-LD.
+
+**Needs a human call:**
+- **The live site shows the old numbers** (heckle network, MP scores) until the
+  next `make sync-site` and site PR.
+- **The gitignored hand-written reports** `data/derived/reactions/NETWORK.md`
+  and `REPORT.md` still quote 916 / 294 / 41%.
