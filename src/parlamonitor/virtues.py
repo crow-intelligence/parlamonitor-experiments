@@ -253,3 +253,43 @@ def score_salience(
         n_mentions=total,
         sparse=total < min_mentions,
     )
+
+
+def sentence_virtues(
+    lemmas: Sequence[str], tags: Sequence[str], virtues: dict[str, Virtue]
+) -> list[tuple[str, str]]:
+    """Every virtue mention in one sentence, as ``(virtue, pole)`` pairs.
+
+    The per-sentence counterpart of :func:`score_salience`, with the same
+    matching: punctuation dropped, lemmas case-folded, multiword entries matched
+    first. A word counted twice in a sentence appears twice.
+
+    Args:
+        lemmas: The sentence's lemmas.
+        tags: Their emtsv tags, index-aligned.
+        virtues: As :func:`load_virtues` returns them.
+
+    Returns:
+        The mentions, in virtue then pole order.
+
+    Example:
+        >>> virtues = load_virtues("data/lexicons/virtues/hu_virtues.json")
+        >>> sentence_virtues(["bátorság", "és", "hazugság", "."],
+        ...                  ["[/N]", "[/Cnj]", "[/N]", "[Punct]"], virtues)
+        [('courage', 'affirming'), ('truthfulness', 'accusing')]
+        >>> sentence_virtues(["asztal", "."], ["[/N]", "[Punct]"], virtues)
+        []
+    """
+    content = [
+        fold(lemma)
+        for lemma, tag in zip(lemmas, tags, strict=True)
+        if "Punct" not in tag
+    ]
+    out: list[tuple[str, str]] = []
+    if not content:
+        return out
+    for key, virtue in virtues.items():
+        for pole in POLES:
+            hits, _ = count_hits(content, getattr(virtue, pole))
+            out.extend([(key, pole)] * hits)
+    return out

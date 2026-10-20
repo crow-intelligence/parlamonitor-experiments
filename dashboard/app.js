@@ -1,6 +1,7 @@
 import { rtd } from "./rtd.js";
 import Graph from "./vendor/graphology.esm.js";
 import forceAtlas2 from "./vendor/forceatlas2.esm.js";
+import { setupSound, VIRTUE_PITCH } from "./sound.js";
 
 /* Parlamonitor dashboard.
  *
@@ -210,6 +211,8 @@ const T = {
     reactionsWord: "reakció",
     scales: "minden sávnak saját skálája van (a jobb szélen: a legnagyobb oszlop)",
     hostileTag: "ellenséges",
+    viewLabel: "Nézet",
+    views: { score: "kotta", classic: "két tömb" },
     hostileTitle: w => `vádló, megszégyenítő vagy sértő szó: ${w}`,
     closing: "apró jel a sáv végén: udvariassági taps a beszéd után",
     axis: "az ülés kezdete óta eltelt idő (óra)",
@@ -234,6 +237,57 @@ const T = {
     cutTitle: "itt szakították félbe",
     noFaction: "frakción kívül",
     loading: "A nap betöltése…"
+  },
+  sound: {
+    soundTitle: "Hallgassa meg",
+    soundLede: "Ugyanez a nap — vagy egyetlen felszólalás — zeneként. Az alapdallamot az " +
+      "erények szókincse adja: minden erénynek saját hangja van, magasan és fényesen, ha " +
+      "dicsérik, két oktávval mélyebben és sötéten, ha vádként hangzik el. Alatta a téma " +
+      "zúg: minden témának saját akkordja van. Erre szólnak rá a terem hangszerei: a taps, " +
+      "a nevetés, a bekiabálás. A kormánypárti padsorok balról, az ellenzékiek jobbról szólnak.",
+    soundNote: "Ez értelmezés, nem mérés: a hangmagasságok, az akkordok és a hangszerek " +
+      "választott leképezések. Az időpontok ugyanazok a becslések, mint az idővonalon. " +
+      "A téma a felszólalás BERTopic-témája; 28 téma jut 8 akkordra, így két téma " +
+      "akkordja egyezhet.",
+    modeLabel: "Mit szólaltassunk meg",
+    modes: { day: "az egész napot", speech: "a kiválasztott felszólalást" },
+    lengthLabel: "Hossz", tempoLabel: "Tempó",
+    volumeLabel: "Hangerő",
+    minutes: m => `${m} perc`,
+    bpm: (n, sec) => `${n} mondat/perc (${sec} mp)`,
+    play: "Lejátszás", pause: "Szünet", solo: "szóló",
+    onLabel: layer => `${layer}: szóljon`,
+    loading: "A hangszerek betöltése…",
+    failed: "A hang nem indult el ebben a böngészőben.",
+    dayPiece: m => `Az egész ülésnap ${m} percbe sűrítve. Nyomja meg a ▶ gombot.`,
+    speechPiece: (who, topic) => `${who} felszólalása, mondatonként egy ütés` +
+      (topic ? ` · téma: ${topic}` : " · ennek a felszólalásnak nincs témája, nincs zúgás") + ".",
+    sentenceAt: (i, n, who) => `${who} · ${i}. mondat (összesen ${n})`,
+    now: (who, fac, topic) => `Most: ${who}${fac ? ` (${fac})` : ""}` + (topic ? ` · téma: ${topic}` : ""),
+    mappingHead: ["szól", "réteg", "hangszer", "ebben a darabban", ""],
+    layers: {
+      virtue_affirming: "erény, dicsérő", virtue_accusing: "erény, vádló", drone: "téma",
+      applause: "taps", laugh_with: "nevetés vele", support: "közbeszólás (biztató)",
+      heckle: "bekiabálás", heckle_hostile: "ellenséges bekiabálás", laugh_at: "nevetés rajta",
+      noise: "zaj, moraj, felzúdulás", bell: "elnöki csengő",
+      closing: "udvariassági taps a beszéd végén", pulse: "mondatütem"
+    },
+    instruments: {
+      virtue_affirming: name => "magas pengetés; erényenként saját hang: " +
+        Object.entries(VIRTUE_PITCH).map(([k, p]) => `${name(k)} ${p}`).join(", "),
+      virtue_accusing: "ugyanaz a hang két oktávval mélyebben, sötét, kissé elhangolt hangszínnel",
+      drone: "halk, kitartott akkord; témánként saját, a téma váltásakor vált",
+      applause: "rózsaszín zaj, mint az eső; a hossza a taps erejét követi (taps → vastaps)",
+      laugh_with: "gyors, felfelé futó xilofon",
+      support: "fadob",
+      heckle: "pergődobszerű kattanás",
+      heckle_hostile: "mély rézfúvós döfés, kis szekund",
+      laugh_at: "lefelé csúszó kürtszerű hang",
+      noise: "mély, barna zaj, felduzzadó moraj",
+      bell: "csengő",
+      closing: "halk cintányér — alapból néma, mert szinte minden beszéd végén szól",
+      pulse: "halk ütés minden mondatra — alapból néma"
+    }
   },
   heat: {
     sentiment_polarity: "Hangulat", emotion_anger: "Düh", emotion_joy: "Öröm",
@@ -1667,7 +1721,32 @@ function renderLiving() {
     const busiest = L.days.slice().sort((a, b) => d3.descending(a.reactions, b.reactions))[0].date;
     sel.value = L.days.some(d => d.date === params.get("day")) ? params.get("day") : busiest;
     state.eloSpeech = params.get("speech");
+    state.eloView = params.get("view") === "classic" ? "classic" : "score";
     sel.onchange = () => { state.eloSpeech = null; showDay(); };
+    const viewSw = document.getElementById("elo-view");
+    set("elo-view-label", S.viewLabel);
+    Object.entries(S.views).forEach(([id, label]) => {
+      const btn = document.createElement("button");
+      btn.type = "button"; btn.setAttribute("role", "radio"); btn.textContent = label;
+      btn.setAttribute("aria-checked", String(id === state.eloView));
+      btn.onclick = () => {
+        state.eloView = id;
+        viewSw.querySelectorAll("button").forEach(x => x.setAttribute("aria-checked", String(x === btn)));
+        const url = new URL(location.href); url.searchParams.set("view", id);
+        history.replaceState(null, "", url);
+        showDay();
+      };
+      viewSw.appendChild(btn);
+    });
+    state.sound = setupSound({
+      S: T.sound,
+      getDay: () => state.eloDay,
+      getMeta: () => state.eloDay && L.days.find(d => d.date === state.eloDay.date),
+      getSpeech: () => state.eloDay &&
+        (state.eloDay.speeches.find(x => x.uid === state.eloSpeech) || state.eloDay.speeches[0]),
+      getGeom: () => state.eloGeom,
+      virtueName: key => T.metrics[`virtue_${key}`].hu.split(",")[0].toLowerCase()
+    });
   }
   showDay();
 
@@ -1676,9 +1755,13 @@ function renderLiving() {
     document.getElementById("elo-seismo").innerHTML = `<p class="note">${S.loading}</p>`;
     loadDay(date).then(day => {
       if (!day.speeches.some(sp => sp.uid === state.eloSpeech)) state.eloSpeech = meta.busiest;
-      drawSeismograph(day, meta, S);
+      const newDay = !state.eloDay || state.eloDay.date !== day.date;
+      state.eloDay = day;
+      state.eloGeom = (state.eloView === "classic" ? drawSeismographClassic : drawSeismograph)(day, meta, S);
       drawTranscript(day, S);
       drawDayTable(day, S);
+      // Switching the view keeps the music going; a new day starts a new piece.
+      if (newDay) state.sound.dayChanged();
     });
   }
 }
@@ -1691,6 +1774,7 @@ function pickSpeech(day, uid, S, scroll) {
   d3.selectAll("#elo-seismo .band").style("stroke", d => d.uid === uid ? "var(--text-primary)" : "var(--surface-1)")
     .style("stroke-width", d => d.uid === uid ? 2 : 0.5);
   drawTranscript(day, S);
+  state.sound.speechChanged();
   if (scroll) document.getElementById("elo-speech-section").scrollIntoView({ behavior: "smooth", block: "start" });
 }
 
@@ -1799,6 +1883,100 @@ function drawSeismograph(day, meta, S) {
     `<span><i class="swatch" style="background:var(--flow-other)"></i>${S.other}</span>` +
     factions.map(f => `<span><i class="swatch" style="background:${factionColour(f)}"></i>${esc(f)}</span>`).join("") +
     `<span style="color:var(--text-muted)">${S.closing} · ${S.scales}</span>`;
+  return { svg, x, top: groupH, bottom: H - axisH };
+}
+
+function drawSeismographClassic(day, meta, S) {
+  const host = document.getElementById("elo-seismo");
+  const W = Math.max(320, host.clientWidth || 1100);
+  const m = { l: 12, r: 12 }, upH = 92, stripH = 26, downH = 92, axisH = 34;
+  const H = upH + stripH + downH + axisH;
+  const end = meta.end_s;
+  const x = d3.scaleLinear().domain([0, end]).range([m.l, W - m.r]);
+  // Two-minute bins, coarser on a narrow screen so that a bin is never under
+  // 4px wide (whole minutes, so the note can say how long a bar is).
+  const BIN = Math.max(120, Math.ceil(end / ((W - m.l - m.r) / 4) / 60) * 60);
+  const bins = d3.range(0, Math.ceil(end / BIN)).map(i => ({ i, t0: i * BIN, own: [], other: [] }));
+  day.speeches.forEach(sp => sp.reactions.forEach(r => {
+    if (r.flow === "own" || r.flow === "other") bins[Math.min(bins.length - 1, Math.floor(r.t / BIN))][r.flow].push({ r, sp });
+  }));
+  const peak = d3.max(bins, b => Math.max(b.own.length, b.other.length)) || 1;
+  const yUp = d3.scaleLinear().domain([0, peak]).range([0, upH - 6]);
+  const yDown = d3.scaleLinear().domain([0, peak]).range([0, downH - 6]);
+  const stripY = upH;
+  const svg = d3.select(host).html("").append("svg").attr("viewBox", `0 0 ${W} ${H}`).attr("width", "100%")
+    .attr("role", "img").attr("aria-label", `${S.dayTitle}: ${huDate(day.date)}`);
+
+  // Hour grid.
+  const hours = d3.range(3600, end, 3600);
+  svg.append("g").selectAll("line").data(hours).join("line")
+    .attr("x1", x).attr("x2", x).attr("y1", 4).attr("y2", upH + stripH + downH)
+    .style("stroke", "var(--grid)");
+  const bw = Math.max(1, x(BIN) - x(0) - 1);   // 1px surface gap between adjacent bins
+  const strongest = list => list.slice().sort((a, b) => d3.descending(a.r.w, b.r.w))[0];
+  const binTip = b => {
+    const parts = [`<strong>${S.binTip(clock(b.t0), clock(b.t0 + BIN))}</strong>`,
+      S.ownN(b.own.length), S.otherN(b.other.length)];
+    const top = strongest(b.other) || strongest(b.own);
+    if (top) parts.push(`<span style="color:var(--text-muted)">${esc(top.sp.speaker)}:</span> ${esc(top.r.who ? top.r.who + ": " + (top.r.quote || "") : top.r.span)}`);
+    return parts.join("<br>");
+  };
+  svg.append("g").selectAll("rect").data(bins.filter(b => b.own.length)).join("rect")
+    .attr("x", b => x(b.t0) + 0.5).attr("width", bw)
+    .attr("y", b => stripY - 2 - yUp(b.own.length)).attr("height", b => yUp(b.own.length))
+    .attr("rx", 1).style("fill", "var(--flow-own)")
+    .on("mousemove", (event, b) => showTip(binTip(b), event)).on("mouseleave", hideTip);
+  svg.append("g").selectAll("rect").data(bins.filter(b => b.other.length)).join("rect")
+    .attr("x", b => x(b.t0) + 0.5).attr("width", bw)
+    .attr("y", stripY + stripH + 2).attr("height", b => yDown(b.other.length))
+    .attr("rx", 1).style("fill", "var(--flow-other)")
+    .on("mousemove", (event, b) => showTip(binTip(b), event)).on("mouseleave", hideTip);
+
+  // Hit targets: each bin with any reaction gets an invisible target as wide as
+  // the bin over its whole half, so a thin bar is still easy to hover.
+  const hitW = x(BIN) - x(0);
+  const live = bins.filter(b => b.own.length || b.other.length);
+  [[4, upH - 6], [stripY + stripH + 2, downH - 2]].forEach(([y0, h]) => {
+    svg.append("g").attr("class", "hit").selectAll("rect").data(live).join("rect")
+      .attr("x", b => x(b.t0 + BIN / 2) - hitW / 2).attr("width", hitW)
+      .attr("y", y0).attr("height", h).style("fill", "transparent")
+      .on("mousemove", (event, b) => showTip(binTip(b), event)).on("mouseleave", hideTip);
+  });
+
+  // Speeches as bands, in the speaker's faction colour; a click opens the text.
+  const count = (sp, f) => sp.reactions.filter(r => r.flow === f).length;
+  svg.append("g").selectAll("rect").data(day.speeches).join("rect").attr("class", "band")
+    .attr("x", sp => x(sp.t0)).attr("width", sp => Math.max(1.5, x(sp.t0 + sp.dur) - x(sp.t0)))
+    .attr("y", stripY).attr("height", stripH)
+    .style("fill", sp => sp.faction ? factionColour(sp.faction) : "var(--neutral)")
+    .style("stroke", sp => sp.uid === state.eloSpeech ? "var(--text-primary)" : "var(--surface-1)")
+    .style("stroke-width", sp => sp.uid === state.eloSpeech ? 2 : 0.5).style("cursor", "pointer")
+    .on("mousemove", (event, sp) => showTip(
+      `<strong>${esc(sp.speaker)}</strong> (${esc(sp.faction || S.noFaction)})<br>${esc(sp.type)}<br>` +
+      `${clock(sp.t0)} · ${fmt(sp.dur / 60, 0)} perc<br>${S.ownN(count(sp, "own"))} · ${S.otherN(count(sp, "other"))}`, event))
+    .on("mouseleave", hideTip)
+    .on("click", (event, sp) => pickSpeech(day, sp.uid, S, true));
+  // Closing applause: a faint tick at the end of the speech it followed.
+  const closings = day.speeches.filter(sp => sp.reactions.some(r => r.closing));
+  svg.append("g").selectAll("line").data(closings).join("line")
+    .attr("x1", sp => x(sp.t0 + sp.dur)).attr("x2", sp => x(sp.t0 + sp.dur))
+    .attr("y1", stripY - 5).attr("y2", stripY).style("stroke", "var(--text-muted)").style("stroke-width", 1)
+    .style("pointer-events", "none");
+
+  const axis = svg.append("g").attr("class", "axis").attr("transform", `translate(0,${upH + stripH + downH + 2})`)
+    .call(d3.axisBottom(x).tickValues(hours).tickFormat(t => S.hour(t / 3600)).tickSize(4));
+  axis.select(".domain").remove();
+  svg.append("text").attr("x", m.l).attr("y", H - 2).style("font-size", "10.5px")
+    .style("fill", "var(--text-muted)").text(S.axis);
+
+  document.getElementById("elo-note").textContent = S.note(BIN / 60);
+  const factions = [...new Set(day.speeches.map(sp => sp.faction).filter(Boolean))];
+  document.getElementById("elo-legend").innerHTML =
+    `<span><i class="swatch" style="background:var(--flow-own)"></i>${S.own}</span>` +
+    `<span><i class="swatch" style="background:var(--flow-other)"></i>${S.other}</span>` +
+    factions.map(f => `<span><i class="swatch" style="background:${factionColour(f)}"></i>${esc(f)}</span>`).join("") +
+    `<span style="color:var(--text-muted)">${S.closing}</span>`;
+  return { svg, x, top: 4, bottom: upH + stripH + downH };
 }
 
 function drawTranscript(day, S) {

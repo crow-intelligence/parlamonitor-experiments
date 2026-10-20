@@ -1099,3 +1099,95 @@ maximum printed at the right. In the transcript, hostile heckles carry an
    a lane, not across lanes. The "max" labels give the absolute numbers.
 3. **Noise lane.** It counts noise from either side. It is almost always from
    the other side, but it is not filtered.
+
+# Task 16 — Élő parlament: the classic view back, and a sonification
+
+Branch `feat/sonification`, PR stacked on `feat/living-lanes` (#8). Not merged.
+
+**The classic view.** The two-block seismograph from `feat/living-parliament`
+is back as `drawSeismographClassic`, with the later hover-target fix. A
+"Nézet: kotta / két tömb" switch chooses between the two views. The score is
+the default, and the choice goes in the URL (`?view=classic`). Both views
+return their x scale and vertical extent, so one playhead works on either.
+Switching views while music plays keeps it playing.
+
+**The data.**
+- **`virtues.sentence_virtues`:** the per-sentence counterpart of
+  `score_salience`, with the same matching.
+- **`scripts/living_parliament.py`:** each speech in the day files now has
+  - `topic`: `{id, name}` from BERTopic, or `null` for the 523 of 1,693
+    speeches without one;
+  - `virtues`: `[sentence, virtue, pole, t_estimated_s]`.
+- **Directions removed first.** Virtues are counted after the directions that
+  the export left inside sentences are removed, so a heckler's *Hazudik!* is
+  not the speaker's.
+- **Only keys are shipped.** Lexicon entries are not; the manifest records the
+  lexicon's sha256.
+- **Cross-check:** per-speech totals agree with `speech_virtues.csv` for
+  1,673 of 1,693 speeches (98.8%; 2,570 vs 2,599 mentions). The script asserts
+  at least 95%. All 20 differing speeches match exactly once the directions
+  are kept (checked one by one), so the gap is the heckler's words that the
+  older table counted for the speaker.
+
+**The sound.** `dashboard/sound.js` uses Tone.js 15.1.22 (MIT), vendored with
+its sha256 and loaded only on the first ▶.
+- **Pieces:**
+  - **the whole day,** compressed to 3 minutes by default (slider 1–8);
+  - **one speech,** at one sentence per beat (150 per minute by default,
+    slider 60–300).
+- **Mixing:** each layer can be muted or soloed. Reactions are panned to their
+  benches: government left, opposition right, unknown in the centre.
+- **Display:** in day mode a playhead moves along the seismograph and the bar
+  names who is speaking and on what topic. In speech mode the current sentence
+  is outlined and kept in view.
+- **Tests:** `tests/test_dashboard_sound.py` runs the event builder under node,
+  with Hypothesis and one hand-timed day. Every mention and reaction plays
+  exactly once, on its layer and inside the piece, and two chords never sound
+  at once.
+- **Audibility was measured.** An offline render in headless Chrome gives a
+  non-zero RMS for the whole piece and for every layer soloed at its first
+  event.
+
+## What needs a human call (Task 16)
+
+Every row of the mapping is an artistic choice. None is a measurement, and the
+page says so. Each is a constant at the top of `sound.js`:
+
+1. **Pitch per virtue.**
+   - Prudence D, justice F, courage A, temperance C, truthfulness E,
+     magnanimity G: the white-key scale without B, so any two notes are
+     consonant.
+   - Affirming plays in octave 5 as a bright pluck. Accusing plays in octave 3,
+     dark and detuned.
+2. **Chord per topic.** There are 8 chords for 28 topics (`id % 8`), so, for
+   example, topics 0 and 8 share a chord. In day mode a topic heard for less
+   than 0.6 s of music (`MIN_DRONE_S`) keeps the previous chord, so the drone
+   doesn't stutter. Speeches without a topic are silent.
+3. **Instruments:**
+
+   | layer | instrument |
+   | --- | --- |
+   | applause | pink-noise rain |
+   | laughing with | a rising xylophone run |
+   | support | a woodblock |
+   | heckle | a snare click |
+   | hostile heckle | a low brass minor second |
+   | laughing at | a falling glide |
+   | noise | a brown-noise rumble |
+   | the chair's bell | a bell |
+   | closing applause | a cymbal |
+
+   The applause length follows the weight (0.5–3).
+4. **Default length** is 3 minutes per day and 150 sentences per minute.
+5. **Muted by default:**
+   - the courtesy applause at a speech's end: 110 events on 15 June, which
+     would drown the day;
+   - the sentence pulse.
+6. **Levels.** Each layer's volume was set from the peaks measured in an
+   offline render, **not by ear**. It needs a listen: `VOLUME_DB` in `sound.js`.
+7. **Virtue times.** A virtue note sounds at the estimated end of its sentence
+   (the same even-pace estimate as the reactions), not at the word.
+
+**Sparse by nature.** About 1.5 virtue mentions per speech: Magyar Péter's
+249-sentence speech on 15 June has 11. So the "melody" is sparse, and in a
+heckled speech the percussion dominates. That is the data, not a bug.

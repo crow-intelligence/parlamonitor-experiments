@@ -28,7 +28,11 @@ from pathlib import Path
 import pandas as pd
 import requests
 
-from parlamonitor.applause import placed_reactions
+from parlamonitor.applause import (
+    placed_reactions,
+    tokens_by_sentence,
+    without_directions,
+)
 from parlamonitor.emtsv import EmtsvError, analyse_lines
 from parlamonitor.interactions import SpeakerRegistry
 from parlamonitor.lexicon import fold
@@ -44,6 +48,7 @@ from parlamonitor.living import (
 from parlamonitor.loading import DATA_RAW, load_speeches
 from parlamonitor.parentheticals import file_sha256
 from parlamonitor.reactions import GOVERNING_PARTIES
+from parlamonitor.virtues import load_virtues, sentence_virtues
 
 ROOT = Path(__file__).resolve().parents[1]
 DEFAULT_OUTPUT_DIR = ROOT / "data" / "derived" / "living"
@@ -51,6 +56,11 @@ REACTION_LINES = ROOT / "data" / "derived" / "applause" / "reaction_lines.csv"
 HOSTILE_WORDS = ROOT / "data" / "labels" / "hostile_heckle_words.json"
 SEED_CACHE = ROOT / "data" / "derived" / "heckles" / "quote_lemma_cache.jsonl"
 HECKLE_KINDS = {"heckling", "interjection"}
+VIRTUES = ROOT / "data" / "lexicons" / "virtues" / "hu_virtues.json"
+SPEECH_LEMMAS = ROOT / "data" / "derived" / "metrics" / "speech_lemmas.jsonl"
+SPEECH_VIRTUES = ROOT / "data" / "derived" / "metrics" / "speech_virtues.csv"
+TOPICS = ROOT / "data" / "derived" / "task2" / "bertopic_documents.csv"
+TOPIC_NAMES = ROOT / "data" / "labels" / "task2_topic_names.json"
 CYCLE = 43
 
 
@@ -114,6 +124,19 @@ def main(argv: Sequence[str] | None = None) -> int:
     out: Path = args.output_dir
     out.mkdir(parents=True, exist_ok=True)
     speeches = load_speeches(args.data_dir)
+    # The sonification's base layer: virtue mentions per sentence, and a topic
+    # per speech for the drone. Only keys travel, never lexicon entries.
+    virtues = load_virtues(VIRTUES)
+    speech_lemmas = {}
+    with SPEECH_LEMMAS.open(encoding="utf-8") as handle:
+        for raw in handle:
+            row = json.loads(raw)
+            speech_lemmas[row["uid"]] = row["sentences"]
+    topic_of = dict(
+        pd.read_csv(TOPICS, usecols=["uid", "topic"]).itertuples(index=False, name=None)
+    )
+    topic_names = json.loads(TOPIC_NAMES.read_text(encoding="utf-8"))
+    virtue_totals: dict[str, int] = {}
     registry = SpeakerRegistry(
         (r.get("speaker") or {} for r in speeches), governing=GOVERNING_PARTIES[CYCLE]
     )
@@ -159,6 +182,22 @@ def main(argv: Sequence[str] | None = None) -> int:
                     "who": p.interjector,
                 }
             )
+        mentions = []
+        tokens = tokens_by_sentence(sentences, speech_lemmas.get(record["uid"], []))
+        for i, sentence in enumerate(sentences):
+            _, words = without_directions(sentence, tokens[i])
+            # The same even-pace estimate as the reactions: the sentence's end.
+            when = round(reaction_seconds(sentences, i, None, start, length), 1)
+            for key, pole in sentence_virtues(
+                [t[1] for t in words], [t[2] for t in words], virtues
+            ):
+                mentions.append([i, key, pole, when])
+        virtue_totals[record["uid"]] = len(mentions)
+        topic = topic_of.get(record["uid"])
+        topic_entry = None
+        if topic is not None and int(topic) >= 0:
+            name = (topic_names.get(str(int(topic))) or {}).get("hu")
+            topic_entry = {"id": int(topic), "name": name}
         agenda = record.get("agenda") or {}
         days[record["date"]].append(
             {
@@ -171,6 +210,8 @@ def main(argv: Sequence[str] | None = None) -> int:
                 "side": side,
                 "type": record.get("speech_type"),
                 "agenda": agenda.get("title"),
+                "topic": topic_entry,
+                "virtues": mentions,
                 "sentences": sentences,
                 "reactions": reactions,
             }
@@ -252,8 +293,41 @@ def main(argv: Sequence[str] | None = None) -> int:
     else:
         reconciled = None
 
+    # Per-speech virtue totals against the speech-level scores (same lexicon).
+    # They differ only where a heckler's words, left inside a sentence by the
+    # export, held a virtue word, or a multiword entry straddled a boundary.
+    agreement = None
+    if SPEECH_VIRTUES.is_file():
+        reference = dict(
+            pd.read_csv(SPEECH_VIRTUES, usecols=["uid", "virtue_mentions"]).itertuples(
+                index=False, name=None
+            )
+        )
+        shared = [u for u in virtue_totals if u in reference]
+        same = sum(virtue_totals[u] == reference[u] for u in shared)
+        agreement = {
+            "speeches": len(shared),
+            "identical": same,
+            "share": round(same / len(shared), 4) if shared else None,
+            "mentions_here": sum(virtue_totals[u] for u in shared),
+            "mentions_speech_level": int(sum(reference[u] for u in shared)),
+        }
+        if shared and same / len(shared) < 0.95:
+            raise AssertionError(
+                f"virtue totals disagree with speech_virtues.csv: {agreement}"
+            )
+
     params = {
         "lanes": [{"id": lane, "side": side} for lane, side in LANES],
+        "virtues": {
+            "keys": list(virtues),
+            "lexicon_sha256": file_sha256(VIRTUES),
+            "unit": "sentence; directions the export left inside sentences removed",
+            "fields": ["sentence_index", "virtue", "pole", "t_estimated_s"],
+        },
+        "topics": (
+            "BERTopic topic per speech (data/derived/task2), names from data/labels"
+        ),
         "hostile_words": {
             "path": _repo_relative(args.hostile_words),
             "sha256": file_sha256(args.hostile_words),
@@ -294,6 +368,7 @@ def main(argv: Sequence[str] | None = None) -> int:
             "reaction_times_inside_their_speech": True,
             "cuts_verbatim_in_text_clean": True,
             "per_day_counts_match_reaction_lines": reconciled,
+            "virtue_totals_vs_speech_virtues": agreement,
         },
     }
     (out / "manifest.json").write_text(
