@@ -21,6 +21,7 @@ def source(tmp_path):
         "index.html": "<html></html>",
         "app.js": "export {}",
         "rtd.js": "export {}",
+        "sound.js": "export {}",
         "README.md": "readme",
         "assets/og.png": "png",
         "vendor/d3.js": "d3",

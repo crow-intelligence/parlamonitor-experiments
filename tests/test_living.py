@@ -1,8 +1,13 @@
+from pathlib import Path
+
 from hypothesis import given
 from hypothesis import strategies as st
 
-from parlamonitor.applause import placed_reactions
+from parlamonitor.applause import placed_reactions, without_directions
 from parlamonitor.living import bench, flow, reaction_seconds
+from parlamonitor.virtues import load_virtues, sentence_virtues
+
+ROOT = Path(__file__).resolve().parents[1]
 
 
 def one(text, sentences):
@@ -111,3 +116,46 @@ def test_the_committed_hostile_list_loads():
         / "hostile_heckle_words.json"
     )
     assert {"hazudik", "szégyen", "tolvaj"} <= words and "fúj" not in words
+
+
+# The sonification's base layer: virtue mentions per sentence.
+
+VIRTUES = load_virtues(ROOT / "data" / "lexicons" / "virtues" / "hu_virtues.json")
+
+
+def mentions(sentence, words):
+    """Virtue mentions in a sentence, from (form, lemma, tag) tokens."""
+    _, kept = without_directions(sentence, [list(w) for w in words])
+    return sentence_virtues([w[1] for w in kept], [w[2] for w in kept], VIRTUES)
+
+
+def test_one_sentence_can_affirm_one_virtue_and_accuse_with_another():
+    words = [
+        ("Bátorság", "bátorság", "[/N]"),
+        ("kell", "kell", "[/V]"),
+        (",", ",", "[Punct]"),
+        ("nem", "nem", "[/Adv]"),
+        ("hazugság", "hazugság", "[/N]"),
+        (".", ".", "[Punct]"),
+    ]
+    assert mentions("Bátorság kell, nem hazugság.", words) == [
+        ("courage", "affirming"),
+        ("truthfulness", "accusing"),
+    ]
+
+
+def test_a_hecklers_words_inside_a_sentence_are_not_the_speakers_virtues():
+    sentence = "(Pócs János: Hazudik!) Bátorság kell."
+    words = [
+        ("(", "(", "[Punct]"),
+        ("Pócs", "Pócs", "[/N]"),
+        ("János", "János", "[/N]"),
+        (":", ":", "[Punct]"),
+        ("Hazudik", "hazudik", "[/V]"),
+        ("!", "!", "[Punct]"),
+        (")", ")", "[Punct]"),
+        ("Bátorság", "bátorság", "[/N]"),
+        ("kell", "kell", "[/V]"),
+        (".", ".", "[Punct]"),
+    ]
+    assert mentions(sentence, words) == [("courage", "affirming")]

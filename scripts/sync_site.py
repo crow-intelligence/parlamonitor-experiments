@@ -47,7 +47,15 @@ DEFAULT_SITE = Path(
 )
 TARGET = Path("projects") / "parlamonitor-dashboard"
 
-PUBLISHED = ("index.html", "app.js", "rtd.js", "README.md", "assets", "vendor")
+PUBLISHED = (
+    "index.html",
+    "app.js",
+    "rtd.js",
+    "sound.js",
+    "README.md",
+    "assets",
+    "vendor",
+)
 """Tracked files and directories that make up the page, relative to ``dashboard/``."""
 
 DATA = ("data/dashboard.json", "data/vocabulary.json", "data/lines.json")
